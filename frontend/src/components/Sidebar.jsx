@@ -1,16 +1,42 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { NavLink } from "react-router-dom";
+
+const items = [
+  { label: "Dashboard", path: "/dashboard", icon: "▦" },
+  { label: "My Orders", path: "/orders", icon: "🛒" },
+  { label: "Price Alerts", path: "/alerts", icon: "🔔" },
+  { label: "Savings Tool", path: "/savings", icon: "〰" },
+  { label: "Subscriptions", path: "/subscriptions", icon: "▭" },
+  { label: "Settings", path: "/settings", icon: "⚙" },
+];
 
 export default function Sidebar() {
   return (
-    <div style={{ width: 200, background: "#111", color: "#fff", height: "100vh", padding: 20 }}>
-      <h3>P.U.R.</h3>
-      <Link to="/" style={link}>Dashboard</Link>
-      <Link to="/orders" style={link}>Orders</Link>
-      <Link to="/alerts" style={link}>Alerts</Link>
-      <Link to="/settings" style={link}>Settings</Link>
-    </div>
+    <aside className="sidebar">
+      <div className="brand-wrap">
+        <div className="brand-icon"></div>
+        <div className="brand-text">P.U.R.</div>
+      </div>
+
+      <nav className="sidebar-nav">
+        {items.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={({ isActive }) =>
+              isActive ? "sidebar-link active" : "sidebar-link"
+            }
+          >
+            <span className="sidebar-link-icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="sidebar-bottom">
+        <div className="sidebar-bottom-link">ⓘ Support</div>
+        <div className="sidebar-bottom-link">⇠ Logout</div>
+      </div>
+    </aside>
   );
 }
-
-const link = { display: "block", color: "#fff", padding: "10px 0" };
