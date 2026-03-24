@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "AfterCart",
+  "version": "0.1.0",
+  "description": "Post-purchase uncertainty reducer — track orders, price drops, and subscriptions across retailers.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://www.amazon.com/*",
+    "https://www.target.com/*",
+    "https://www.bestbuy.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.amazon.com/gp/your-account/order-history*",
+        "https://www.amazon.com/gp/your-account/order-details*",
+        "https://www.amazon.com/dp/*"
+      ],
+      "js": ["content/retailers/amazon.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.target.com/account/order-detail*",
+        "https://www.target.com/p/*"
+      ],
+      "js": ["content/retailers/target.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
