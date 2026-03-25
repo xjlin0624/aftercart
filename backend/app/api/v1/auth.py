@@ -10,7 +10,9 @@ from ...core.security import (
     create_refresh_token,
     decode_token,
     hash_password,
+    hash_token,
     verify_password,
+    verify_token,
 )
 from ...models.user import User
 from ...schemas.auth import LoginRequest, RefreshRequest, SignupRequest, TokenResponse
@@ -49,7 +51,7 @@ def login(body: LoginRequest, db: DB) -> TokenResponse:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
 
     refresh_token = create_refresh_token(str(user.id))
-    user.refresh_token_hash = hash_password(refresh_token)
+    user.refresh_token_hash = hash_token(refresh_token)
     db.commit()
 
     return TokenResponse(
@@ -93,11 +95,11 @@ def refresh(body: RefreshRequest, db: DB) -> TokenResponse:
     if not user or not user.refresh_token_hash:
         raise credentials_error
 
-    if not verify_password(body.refresh_token, user.refresh_token_hash):
+    if not verify_token(body.refresh_token, user.refresh_token_hash):
         raise credentials_error
 
     new_refresh = create_refresh_token(str(user.id))
-    user.refresh_token_hash = hash_password(new_refresh)
+    user.refresh_token_hash = hash_token(new_refresh)
     db.commit()
 
     return TokenResponse(
