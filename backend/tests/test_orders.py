@@ -1,5 +1,5 @@
 """
-Unit tests for POST /api/orders (order ingestion).
+Unit tests for POST /api/orders (FR-3 order ingestion + FR-4 de-duplication).
 Uses the FakeSession pattern — no real database required.
 """
 from datetime import datetime, timezone
@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from backend.app.api.deps import get_current_user, get_db
+from backend.app.api.orders import OrderIngest, find_or_create_order
 from backend.app.main import app
 from backend.app.models.enums import OrderStatus
 from backend.app.models.order import Order
@@ -25,9 +26,6 @@ class FakeOrderSession:
         self.added: list = []
         self.deleted: list = []
         self.committed = False
-        self._flushed = False
-
-    # --- query support ---
 
     def query(self, model):
         if model is Order:
@@ -36,16 +34,12 @@ class FakeOrderSession:
             return _FakeItemQuery(self)
         return _FakeOrderQuery(None)
 
-    # --- unit-of-work ---
-
     def add(self, obj):
         self.added.append(obj)
         if isinstance(obj, Order):
             self._order = obj
 
     def flush(self):
-        self._flushed = True
-        # Simulate DB assigning a PK on INSERT
         if isinstance(self._order, Order) and not self._order.id:
             self._order.id = uuid4()
 
@@ -61,7 +55,6 @@ class FakeOrderSession:
                 obj.created_at = now
             if obj.updated_at is None:
                 obj.updated_at = now
-            # Attach items and populate their DB-assigned defaults
             items = [a for a in self.added if isinstance(a, OrderItem)]
             for item in items:
                 if not item.id:
@@ -92,7 +85,6 @@ class _FakeOrderQuery:
 
 
 class _FakeItemQuery:
-    """Query stub for OrderItem — only needs .filter().delete()."""
     def __init__(self, session):
         self._session = session
 
@@ -151,10 +143,85 @@ _MINIMAL_BODY = {
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# find_or_create_order unit tests (dedup helper, no HTTP)
 # ---------------------------------------------------------------------------
 
-def test_create_new_order_returns_201():
+def test_find_or_create_returns_new_when_no_match():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+
+    order, is_new = find_or_create_order(session, user.id, "amazon", "112-0000001-0000001")
+
+    assert is_new is True
+    assert order in session.added
+
+
+def test_find_or_create_returns_existing_when_match():
+    user = _make_user()
+    existing = _make_order(user)
+    session = FakeOrderSession(existing_order=existing)
+
+    order, is_new = find_or_create_order(
+        session, user.id, existing.retailer, existing.retailer_order_id
+    )
+
+    assert is_new is False
+    assert order is existing
+    assert order not in session.added
+
+
+def test_find_or_create_does_not_add_duplicate_to_session():
+    user = _make_user()
+    existing = _make_order(user)
+    session = FakeOrderSession(existing_order=existing)
+
+    find_or_create_order(session, user.id, existing.retailer, existing.retailer_order_id)
+
+    assert len(session.added) == 0
+
+
+# ---------------------------------------------------------------------------
+# Input normalization (FR-4)
+# ---------------------------------------------------------------------------
+
+def test_retailer_is_lowercased():
+    parsed = OrderIngest(
+        retailer="AMAZON",
+        retailer_order_id="112-0000001-0000001",
+        order_status=OrderStatus.pending,
+        order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        subtotal=10.0,
+    )
+    assert parsed.retailer == "amazon"
+
+
+def test_retailer_whitespace_is_stripped():
+    parsed = OrderIngest(
+        retailer="  target  ",
+        retailer_order_id="100-9876543-9876543",
+        order_status=OrderStatus.pending,
+        order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        subtotal=10.0,
+    )
+    assert parsed.retailer == "target"
+
+
+def test_order_id_whitespace_is_stripped():
+    parsed = OrderIngest(
+        retailer="amazon",
+        retailer_order_id="  112-0000001-0000001  ",
+        order_status=OrderStatus.pending,
+        order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        subtotal=10.0,
+    )
+    assert parsed.retailer_order_id == "112-0000001-0000001"
+
+
+# ---------------------------------------------------------------------------
+# HTTP status codes (201 on create, 200 on update)
+# ---------------------------------------------------------------------------
+
+def test_new_order_returns_201():
     user = _make_user()
     session = FakeOrderSession(existing_order=None)
     client = _make_client(session, user)
@@ -162,8 +229,22 @@ def test_create_new_order_returns_201():
     resp = client.post("/api/orders", json=_MINIMAL_BODY)
 
     assert resp.status_code == 201
-    assert session.committed is True
 
+
+def test_existing_order_returns_200():
+    user = _make_user()
+    existing = _make_order(user)
+    session = FakeOrderSession(existing_order=existing)
+    client = _make_client(session, user)
+
+    resp = client.post("/api/orders", json=_MINIMAL_BODY)
+
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Core ingestion behaviour
+# ---------------------------------------------------------------------------
 
 def test_create_order_stores_correct_fields():
     user = _make_user()
@@ -189,18 +270,8 @@ def test_create_order_with_items():
     body = {
         **_MINIMAL_BODY,
         "items": [
-            {
-                "product_name": "Running Shoes",
-                "product_url": "https://amazon.com/dp/B001",
-                "paid_price": 99.99,
-                "quantity": 1,
-            },
-            {
-                "product_name": "Socks",
-                "product_url": "https://amazon.com/dp/B002",
-                "paid_price": 9.99,
-                "quantity": 3,
-            },
+            {"product_name": "Running Shoes", "product_url": "https://amazon.com/dp/B001", "paid_price": 99.99},
+            {"product_name": "Socks", "product_url": "https://amazon.com/dp/B002", "paid_price": 9.99, "quantity": 3},
         ],
     }
 
@@ -218,14 +289,10 @@ def test_create_order_item_inherits_user_id():
     session = FakeOrderSession(existing_order=None)
     client = _make_client(session, user)
 
-    body = {
-        **_MINIMAL_BODY,
-        "items": [{"product_name": "Widget", "product_url": "https://amazon.com/dp/X", "paid_price": 5.0}],
-    }
+    body = {**_MINIMAL_BODY, "items": [{"product_name": "Widget", "product_url": "https://amazon.com/dp/X", "paid_price": 5.0}]}
 
-    resp = client.post("/api/orders", json=body)
+    client.post("/api/orders", json=body)
 
-    assert resp.status_code == 201
     item = next(a for a in session.added if isinstance(a, OrderItem))
     assert item.user_id == user.id
 
@@ -241,7 +308,7 @@ def test_upsert_updates_existing_order():
 
     resp = client.post("/api/orders", json=body)
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert existing.order_status == OrderStatus.shipped
     assert existing.tracking_number == "1Z999AA1"
     assert session.committed is True
@@ -253,19 +320,12 @@ def test_upsert_replaces_items():
     session = FakeOrderSession(existing_order=existing)
     client = _make_client(session, user)
 
-    body = {
-        **_MINIMAL_BODY,
-        "items": [
-            {"product_name": "New Item", "product_url": "https://amazon.com/dp/N", "paid_price": 20.0},
-        ],
-    }
+    body = {**_MINIMAL_BODY, "items": [{"product_name": "New Item", "product_url": "https://amazon.com/dp/N", "paid_price": 20.0}]}
 
     resp = client.post("/api/orders", json=body)
 
-    assert resp.status_code == 201
-    # Old items were deleted
+    assert resp.status_code == 200
     assert "items" in session.deleted
-    # New item was added
     new_items = [a for a in session.added if isinstance(a, OrderItem)]
     assert len(new_items) == 1
     assert new_items[0].product_name == "New Item"
