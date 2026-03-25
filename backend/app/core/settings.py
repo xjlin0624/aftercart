@@ -26,6 +26,10 @@ class Settings(BaseSettings):
         alias="SUBSCRIPTION_REFRESH_INTERVAL_MINUTES",
     )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    jwt_secret: str = Field(default="change-me-in-production", alias="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
     @property
     def broker_url(self) -> str:
