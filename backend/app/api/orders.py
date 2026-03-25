@@ -1,7 +1,8 @@
+from datetime import date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from .deps import get_current_user, get_db
@@ -15,6 +16,32 @@ router = APIRouter(prefix="/orders", tags=["orders"])
 
 DB = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+# ---------------------------------------------------------------------------
+# Return-window deadline calculation
+# ---------------------------------------------------------------------------
+
+def compute_return_deadline(
+    order_date,
+    return_window_days: int | None,
+    explicit_deadline: date | None,
+) -> date | None:
+    """
+    Return the correct return_deadline for an order.
+
+    Rules:
+    - If an explicit deadline is already set, use it unchanged.
+    - If return_window_days is provided, compute order_date.date() + window.
+    - Otherwise return None.
+    """
+    if explicit_deadline is not None:
+        return explicit_deadline
+    if return_window_days is not None:
+        # datetime is a subclass of date, so check datetime first
+        order_dt = order_date.date() if isinstance(order_date, datetime) else order_date
+        return order_dt + timedelta(days=return_window_days)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +63,20 @@ class OrderIngest(OrderCreate):
     def normalize_order_id(cls, v: str) -> str:
         """Strip surrounding whitespace to avoid whitespace-only duplicates."""
         return v.strip()
+
+    @model_validator(mode="after")
+    def fill_return_deadline(self) -> "OrderIngest":
+        """
+        Compute return_deadline from order_date + return_window_days when the
+        caller supplies a window but no explicit deadline.  An explicit deadline
+        in the request is always respected as-is.
+        """
+        self.return_deadline = compute_return_deadline(
+            order_date=self.order_date,
+            return_window_days=self.return_window_days,
+            explicit_deadline=self.return_deadline,
+        )
+        return self
 
 
 class OrderReadWithItems(OrderRead):

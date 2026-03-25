@@ -1,14 +1,15 @@
 """
-Unit tests for POST /api/orders (FR-3 order ingestion + FR-4 de-duplication).
+Unit tests for POST /api/orders (FR-3 order ingestion, FR-4 de-duplication,
+return-window deadline calculation).
 Uses the FakeSession pattern — no real database required.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
 from backend.app.api.deps import get_current_user, get_db
-from backend.app.api.orders import OrderIngest, find_or_create_order
+from backend.app.api.orders import OrderIngest, compute_return_deadline, find_or_create_order
 from backend.app.main import app
 from backend.app.models.enums import OrderStatus
 from backend.app.models.order import Order
@@ -340,3 +341,96 @@ def test_no_items_body_creates_order_with_empty_items():
 
     assert resp.status_code == 201
     assert resp.json()["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# Return-window deadline calculation (pure function)
+# ---------------------------------------------------------------------------
+
+def test_compute_deadline_from_window():
+    result = compute_return_deadline(
+        order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        return_window_days=30,
+        explicit_deadline=None,
+    )
+    assert result == date(2024, 1, 31)
+
+
+def test_compute_deadline_explicit_overrides_window():
+    explicit = date(2024, 2, 14)
+    result = compute_return_deadline(
+        order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        return_window_days=30,
+        explicit_deadline=explicit,
+    )
+    assert result == explicit
+
+
+def test_compute_deadline_no_window_returns_none():
+    result = compute_return_deadline(
+        order_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        return_window_days=None,
+        explicit_deadline=None,
+    )
+    assert result is None
+
+
+def test_compute_deadline_zero_day_window():
+    result = compute_return_deadline(
+        order_date=datetime(2024, 3, 15, tzinfo=timezone.utc),
+        return_window_days=0,
+        explicit_deadline=None,
+    )
+    assert result == date(2024, 3, 15)
+
+
+def test_compute_deadline_accepts_date_object():
+    """order_date may already be a date rather than a datetime."""
+    result = compute_return_deadline(
+        order_date=date(2024, 6, 1),
+        return_window_days=15,
+        explicit_deadline=None,
+    )
+    assert result == date(2024, 6, 16)
+
+
+# ---------------------------------------------------------------------------
+# Return-window via HTTP endpoint
+# ---------------------------------------------------------------------------
+
+def test_ingest_computes_deadline_from_window():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    body = {**_MINIMAL_BODY, "return_window_days": 30}
+
+    resp = client.post("/api/orders", json=body)
+
+    assert resp.status_code == 201
+    # order_date is 2024-01-15, +30 days = 2024-02-14
+    assert resp.json()["return_deadline"] == "2024-02-14"
+
+
+def test_ingest_explicit_deadline_not_overwritten():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    body = {**_MINIMAL_BODY, "return_window_days": 30, "return_deadline": "2024-03-01"}
+
+    resp = client.post("/api/orders", json=body)
+
+    assert resp.status_code == 201
+    assert resp.json()["return_deadline"] == "2024-03-01"
+
+
+def test_ingest_no_window_no_deadline():
+    user = _make_user()
+    session = FakeOrderSession(existing_order=None)
+    client = _make_client(session, user)
+
+    resp = client.post("/api/orders", json=_MINIMAL_BODY)
+
+    assert resp.status_code == 201
+    assert resp.json()["return_deadline"] is None
