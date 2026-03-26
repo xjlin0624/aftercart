@@ -110,5 +110,3 @@ def refresh(body: RefreshRequest, db: DB) -> TokenResponse:
         refresh_token=new_refresh,
         user=user,
     )
-
-

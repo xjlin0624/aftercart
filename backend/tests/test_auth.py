@@ -156,6 +156,19 @@ def test_login_returns_token_pair():
     assert data["token_type"] == "bearer"
 
 
+def test_login_includes_user_in_response():
+    user = _active_user(password="hunter2")
+    session = FakeAuthSession(user=user)
+    client = _make_client(session)
+
+    resp = client.post("/api/auth/login", json={"email": user.email, "password": "hunter2"})
+
+    data = resp.json()
+    assert "user" in data
+    assert data["user"]["email"] == user.email
+    assert "id" in data["user"]
+
+
 def test_login_stores_hashed_refresh_token():
     user = _active_user(password="hunter2")
     session = FakeAuthSession(user=user)
@@ -265,6 +278,20 @@ def test_refresh_returns_new_token_pair():
     assert "refresh_token" in data
 
 
+def test_refresh_includes_user_in_response():
+    user = _active_user()
+    refresh_token = create_refresh_token(str(user.id))
+    user.refresh_token_hash = hash_token(refresh_token)
+    session = FakeAuthSession(user=user)
+    client = _make_client(session)
+
+    resp = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+
+    data = resp.json()
+    assert "user" in data
+    assert data["user"]["email"] == user.email
+
+
 def test_refresh_rotates_token():
     """The stored hash must verify the new token, not the old one."""
     user = _active_user()
@@ -329,3 +356,34 @@ def test_refresh_no_stored_hash_returns_401():
     resp = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
 
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GET /api/users/me
+# ---------------------------------------------------------------------------
+
+def test_get_me_returns_current_user():
+    from backend.app.core.security import create_access_token
+    user = _active_user()
+    now = datetime.now(timezone.utc)
+    user.created_at = now
+    user.updated_at = now
+    session = FakeAuthSession(user=user)
+    client = _make_client(session)
+    token = create_access_token(str(user.id))
+
+    resp = client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["email"] == user.email
+    assert data["id"] == str(user.id)
+
+
+def test_get_me_returns_401_without_token():
+    session = FakeAuthSession(user=None)
+    client = _make_client(session)
+
+    resp = client.get("/api/users/me")
+
+    assert resp.status_code == 403
