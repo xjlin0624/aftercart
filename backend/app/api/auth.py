@@ -53,10 +53,12 @@ def login(body: LoginRequest, db: DB) -> TokenResponse:
     refresh_token = create_refresh_token(str(user.id))
     user.refresh_token_hash = hash_token(refresh_token)
     db.commit()
+    db.refresh(user)
 
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
         refresh_token=refresh_token,
+        user=user,
     )
 
 
@@ -101,8 +103,12 @@ def refresh(body: RefreshRequest, db: DB) -> TokenResponse:
     new_refresh = create_refresh_token(str(user.id))
     user.refresh_token_hash = hash_token(new_refresh)
     db.commit()
+    db.refresh(user)
 
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
         refresh_token=new_refresh,
+        user=user,
     )
+
+
