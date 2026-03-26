@@ -442,7 +442,7 @@ def test_process_suppresses_alert_when_notify_disabled():
 
 
 def test_process_both_eta_and_stall_detected():
-    # Verifies both detectors can fire in one cycle independently.
+    # Both events fire, but only one alert is created (eta takes priority; stall skipped).
     order = _order(estimated_delivery=date(2026, 3, 25))
     session = FakeDeliverySession(order=order)
     stale_time = datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)
@@ -464,6 +464,47 @@ def test_process_both_eta_and_stall_detected():
 
     assert result["events_created"] == 2
     assert result["alert_created"] is True
+    assert sum(1 for o in session.added if isinstance(o, Alert)) == 1
+
+
+def test_process_skips_eta_alert_when_duplicate_exists():
+    order = _order(estimated_delivery=date(2026, 3, 25))
+    session = FakeDeliverySession(order=order)
+    existing = MagicMock()  # simulates an existing unresolved delivery_anomaly alert
+
+    result = process_order_delivery_check(
+        session,
+        order.id,
+        prefs_lookup=lambda _uid: _prefs(),
+        last_eta_lookup=lambda _s, _id: date(2026, 3, 20),
+        last_event_lookup=lambda _s, _id: (None, None),
+        existing_alert_lookup=lambda _s, _id: existing,
+    )
+
+    assert result["alert_created"] is False
+    assert result["alert_skipped_duplicate"] is True
+    assert not any(isinstance(o, Alert) for o in session.added)
+
+
+def test_process_skips_stall_alert_when_duplicate_exists():
+    order = _order()
+    session = FakeDeliverySession(order=order)
+    stale_time = datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc)
+    existing = MagicMock()
+
+    result = process_order_delivery_check(
+        session,
+        order.id,
+        prefs_lookup=lambda _uid: _prefs(),
+        last_eta_lookup=lambda _s, _id: None,
+        last_event_lookup=lambda _s, _id: (stale_time, DeliveryEventType.status_changed),
+        existing_alert_lookup=lambda _s, _id: existing,
+        stall_threshold_days=3,
+    )
+
+    assert result["alert_created"] is False
+    assert result["alert_skipped_duplicate"] is True
+    assert not any(isinstance(o, Alert) for o in session.added)
 
 
 # ---------------------------------------------------------------------------

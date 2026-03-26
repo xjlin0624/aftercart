@@ -174,12 +174,25 @@ def _default_last_event_lookup(
     return carrier_scraped_at, last_event_type
 
 
+def _default_existing_delivery_alert_lookup(session: Session, order_id: UUID) -> Alert | None:
+    """Return an unresolved delivery_anomaly alert for this order, or None."""
+    active_statuses = (AlertStatus.new, AlertStatus.viewed)
+    return session.execute(
+        select(Alert)
+        .where(Alert.order_id == order_id)
+        .where(Alert.alert_type == AlertType.delivery_anomaly)
+        .where(Alert.status.in_(active_statuses))
+        .limit(1)
+    ).scalar_one_or_none()
+
+
 def process_order_delivery_check(
     session: Session,
     order_id: str | UUID,
     prefs_lookup: Callable | None = None,
     last_eta_lookup: Callable = _default_last_eta_lookup,
     last_event_lookup: Callable = _default_last_event_lookup,
+    existing_alert_lookup: Callable = _default_existing_delivery_alert_lookup,
     stall_threshold_days: int = STALL_THRESHOLD_DAYS,
 ) -> dict[str, Any]:
     order = session.get(Order, UUID(str(order_id)))
@@ -205,24 +218,33 @@ def process_order_delivery_check(
     last_eta = last_eta_lookup(session, order.id)
     last_scraped_at, last_event_type = last_event_lookup(session, order.id)
 
+    existing_alert = existing_alert_lookup(session, order.id) if notify else None
+
     events_created = 0
     alert_created = False
+    alert_skipped_duplicate = False
 
     eta_event = detect_eta_slippage(order, last_eta)
     if eta_event is not None:
         session.add(eta_event)
         events_created += 1
         if eta_event.is_anomaly and notify:
-            session.add(build_delivery_anomaly_alert(order, eta_event))
-            alert_created = True
+            if existing_alert is not None:
+                alert_skipped_duplicate = True
+            else:
+                session.add(build_delivery_anomaly_alert(order, eta_event))
+                alert_created = True
 
     stall_event = detect_stalled_tracking(order, last_scraped_at, last_event_type, today, stall_threshold_days)
     if stall_event is not None:
         session.add(stall_event)
         events_created += 1
-        if notify:
-            session.add(build_delivery_anomaly_alert(order, stall_event))
-            alert_created = True
+        if notify and not alert_created:
+            if existing_alert is not None:
+                alert_skipped_duplicate = True
+            else:
+                session.add(build_delivery_anomaly_alert(order, stall_event))
+                alert_created = True
 
     if events_created > 0:
         session.commit()
@@ -232,6 +254,7 @@ def process_order_delivery_check(
         "order_id": str(order_id),
         "events_created": events_created,
         "alert_created": alert_created,
+        "alert_skipped_duplicate": alert_skipped_duplicate,
     }
 
 
