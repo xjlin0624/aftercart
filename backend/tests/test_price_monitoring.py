@@ -9,6 +9,7 @@ from backend.app.models import (
 from backend.app.scrapers import PriceCheckResult
 from backend.app.tasks.price_monitoring import (
     build_price_drop_alert,
+    compute_recommended_action,
     enqueue_candidate_price_checks,
     process_order_item_price_check,
     should_create_price_drop_alert,
@@ -97,6 +98,7 @@ def test_process_order_item_price_check_creates_snapshot_and_updates_current_pri
         order_item_id=str(order_item.id),
         adapter_lookup=lambda _retailer: _fake_adapter(),
         prefs_lookup=lambda _uid: None,
+        existing_alert_lookup=lambda _s, _id: None,
     )
 
     assert result["status"] == "snapshot_created"
@@ -119,6 +121,8 @@ def test_process_order_item_price_check_skips_unsupported_retailer():
     )
 
     assert result["status"] == "skipped_unsupported_retailer"
+    assert result["alert_created"] is False
+    assert result["alert_skipped_duplicate"] is False
     assert session.committed is False
     assert session.added == []
 
@@ -181,6 +185,22 @@ def test_build_price_drop_alert_price_match_path():
     assert alert.estimated_effort == EffortLevel.low
     assert alert.effort_steps_estimate == 3
     assert alert.estimated_savings == 30.0
+
+
+def test_build_price_drop_alert_price_match_does_not_set_return_window_fields():
+    # Even if a return_deadline exists, it should not appear on a price_match alert
+    future_deadline = date.today() + timedelta(days=7)
+    item = build_order_item(
+        paid_price=100.0,
+        price_match_eligible=True,
+        return_deadline=future_deadline,
+    )
+    snapshot = _fake_snapshot(item, scraped_price=70.0)
+    alert = build_price_drop_alert(item, snapshot, threshold=10.0)
+
+    assert alert.recommended_action == RecommendedAction.price_match
+    assert alert.days_remaining_return is None
+    assert alert.action_deadline is None
 
 
 def test_build_price_drop_alert_return_and_rebuy_path():
@@ -315,3 +335,94 @@ def test_process_order_item_price_check_prefs_lookup_injectable():
     )
 
     assert called_with == [order_item.user_id]
+
+
+# ---------------------------------------------------------------------------
+# compute_recommended_action
+# ---------------------------------------------------------------------------
+
+def test_compute_recommended_action_price_match():
+    item = build_order_item(price_match_eligible=True)
+    action, effort, steps = compute_recommended_action(item.order, date.today())
+    assert action == RecommendedAction.price_match
+    assert effort == EffortLevel.low
+    assert steps == 3
+
+
+def test_compute_recommended_action_return_and_rebuy():
+    future = date.today() + timedelta(days=7)
+    item = build_order_item(price_match_eligible=False, return_deadline=future)
+    action, effort, steps = compute_recommended_action(item.order, date.today())
+    assert action == RecommendedAction.return_and_rebuy
+    assert effort == EffortLevel.medium
+    assert steps == 7
+
+
+def test_compute_recommended_action_no_action_deadline_passed():
+    past = date.today() - timedelta(days=1)
+    item = build_order_item(price_match_eligible=False, return_deadline=past)
+    action, effort, steps = compute_recommended_action(item.order, date.today())
+    assert action == RecommendedAction.no_action
+    assert steps == 0
+
+
+def test_compute_recommended_action_no_action_no_deadline():
+    item = build_order_item(price_match_eligible=False, return_deadline=None)
+    action, effort, steps = compute_recommended_action(item.order, date.today())
+    assert action == RecommendedAction.no_action
+
+
+def test_compute_recommended_action_price_match_takes_priority_over_open_window():
+    # price_match_eligible=True wins even when return window is also open
+    future = date.today() + timedelta(days=7)
+    item = build_order_item(price_match_eligible=True, return_deadline=future)
+    action, _, _ = compute_recommended_action(item.order, date.today())
+    assert action == RecommendedAction.price_match
+
+
+def test_compute_recommended_action_no_order():
+    action, _, steps = compute_recommended_action(None, date.today())
+    assert action == RecommendedAction.no_action
+    assert steps == 0
+
+
+# ---------------------------------------------------------------------------
+# process_order_item_price_check — deduplication
+# ---------------------------------------------------------------------------
+
+def test_process_order_item_price_check_skips_duplicate_alert():
+    order_item = build_order_item(paid_price=120.0)
+    session = FakeSession(order_item)
+    existing_alert = Alert(id=uuid4(), user_id=order_item.user_id, order_item_id=order_item.id)
+
+    result = process_order_item_price_check(
+        session=session,
+        order_item_id=str(order_item.id),
+        adapter_lookup=lambda _: _fake_adapter(scraped_price=79.99),
+        prefs_lookup=lambda _: _prefs(threshold=10.0, notify=True),
+        existing_alert_lookup=lambda _session, _id: existing_alert,
+    )
+
+    assert result["alert_created"] is False
+    assert result["alert_skipped_duplicate"] is True
+    # Only the snapshot is added — no new Alert
+    assert len(session.added) == 1
+    assert isinstance(session.added[0], PriceSnapshot)
+
+
+def test_process_order_item_price_check_creates_alert_when_no_duplicate():
+    order_item = build_order_item(paid_price=120.0)
+    session = FakeSession(order_item)
+
+    result = process_order_item_price_check(
+        session=session,
+        order_item_id=str(order_item.id),
+        adapter_lookup=lambda _: _fake_adapter(scraped_price=79.99),
+        prefs_lookup=lambda _: _prefs(threshold=10.0, notify=True),
+        existing_alert_lookup=lambda _session, _id: None,
+    )
+
+    assert result["alert_created"] is True
+    assert result["alert_skipped_duplicate"] is False
+    assert len(session.added) == 2
+    assert isinstance(session.added[1], Alert)

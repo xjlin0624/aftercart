@@ -49,6 +49,27 @@ def should_create_price_drop_alert(
     return (paid_price - scraped_price) >= threshold
 
 
+def compute_recommended_action(
+    order,
+    today: date,
+) -> tuple[RecommendedAction, EffortLevel, int]:
+    """
+    Determine the recommended action for a price-drop alert.
+
+    Decision tree (in priority order):
+      1. PRICE_MATCH      — retailer supports post-purchase price matching
+      2. RETURN_AND_REBUY — return window is still open
+      3. NO_ACTION        — no actionable path available
+
+    Returns (action, effort_level, effort_steps_estimate).
+    """
+    if order and order.price_match_eligible:
+        return RecommendedAction.price_match, EffortLevel.low, 3
+    if order and order.return_deadline and order.return_deadline >= today:
+        return RecommendedAction.return_and_rebuy, EffortLevel.medium, 7
+    return RecommendedAction.no_action, EffortLevel.low, 0
+
+
 def build_price_drop_alert(
     order_item: OrderItem,
     snapshot: PriceSnapshot,
@@ -61,10 +82,7 @@ def build_price_drop_alert(
       high   — delta >= 2x threshold (significant saving)
       medium — delta >= threshold
 
-    Recommended action:
-      price_match      — retailer supports post-purchase price matching
-      return_and_rebuy — return window still open
-      no_action        — no actionable path available
+    Recommended action determined by compute_recommended_action().
     """
     delta = round(order_item.paid_price - snapshot.scraped_price, 2)
     order = order_item.order
@@ -72,22 +90,11 @@ def build_price_drop_alert(
 
     priority = AlertPriority.high if delta >= 2 * threshold else AlertPriority.medium
 
-    if order and order.price_match_eligible:
-        recommended_action = RecommendedAction.price_match
-        effort = EffortLevel.low
-        effort_steps = 3
-    elif order and order.return_deadline and order.return_deadline >= today:
-        recommended_action = RecommendedAction.return_and_rebuy
-        effort = EffortLevel.medium
-        effort_steps = 7
-    else:
-        recommended_action = RecommendedAction.no_action
-        effort = EffortLevel.low
-        effort_steps = 0
+    recommended_action, effort, effort_steps = compute_recommended_action(order, today)
 
     days_remaining = None
     action_deadline = None
-    if order and order.return_deadline:
+    if recommended_action == RecommendedAction.return_and_rebuy and order and order.return_deadline:
         days_remaining = (order.return_deadline - today).days
         action_deadline = order.return_deadline
 
@@ -123,11 +130,23 @@ def build_price_drop_alert(
     )
 
 
+def _default_existing_alert_lookup(session: Session, order_item_id: UUID) -> Alert | None:
+    """Return an unresolved alert for this item, or None."""
+    active_statuses = (AlertStatus.new, AlertStatus.viewed)
+    return session.execute(
+        select(Alert)
+        .where(Alert.order_item_id == order_item_id)
+        .where(Alert.status.in_(active_statuses))
+        .limit(1)
+    ).scalar_one_or_none()
+
+
 def process_order_item_price_check(
     session: Session,
     order_item_id: str | UUID,
     adapter_lookup=get_price_adapter,
     prefs_lookup=None,
+    existing_alert_lookup=_default_existing_alert_lookup,
 ) -> dict[str, Any]:
     stmt = (
         select(OrderItem)
@@ -136,7 +155,7 @@ def process_order_item_price_check(
     )
     order_item = session.execute(stmt).scalar_one_or_none()
     if order_item is None:
-        return {"status": "skipped_missing_order_item", "order_item_id": str(order_item_id)}
+        return {"status": "skipped_missing_order_item", "order_item_id": str(order_item_id), "alert_created": False, "alert_skipped_duplicate": False}
 
     retailer = order_item.order.retailer if order_item.order else None
     adapter = adapter_lookup(retailer)
@@ -145,6 +164,8 @@ def process_order_item_price_check(
             "status": "skipped_unsupported_retailer",
             "order_item_id": str(order_item.id),
             "retailer": retailer,
+            "alert_created": False,
+            "alert_skipped_duplicate": False,
         }
 
     try:
@@ -154,6 +175,8 @@ def process_order_item_price_check(
             "status": "skipped_unsupported_retailer",
             "order_item_id": str(order_item.id),
             "retailer": retailer,
+            "alert_created": False,
+            "alert_skipped_duplicate": False,
         }
 
     snapshot = PriceSnapshot(
@@ -179,14 +202,18 @@ def process_order_item_price_check(
     notify = prefs.notify_price_drop if prefs else True
 
     alert_created = False
+    alert_skipped_duplicate = False
     if should_create_price_drop_alert(
         paid_price=order_item.paid_price,
         scraped_price=result.scraped_price,
         threshold=threshold,
         notify_price_drop=notify,
     ):
-        session.add(build_price_drop_alert(order_item, snapshot, threshold))
-        alert_created = True
+        if existing_alert_lookup(session, order_item.id) is not None:
+            alert_skipped_duplicate = True
+        else:
+            session.add(build_price_drop_alert(order_item, snapshot, threshold))
+            alert_created = True
 
     session.commit()
     return {
@@ -195,6 +222,7 @@ def process_order_item_price_check(
         "retailer": retailer,
         "scraped_price": result.scraped_price,
         "alert_created": alert_created,
+        "alert_skipped_duplicate": alert_skipped_duplicate,
     }
 
 

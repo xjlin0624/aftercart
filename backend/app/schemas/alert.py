@@ -26,8 +26,6 @@ class AlertCreate(BaseModel):
 class AlertUpdate(BaseModel):
     status: AlertStatus | None = None
     generated_messages: dict | None = None
-    push_sent_at: datetime | None = None
-    resolved_at: datetime | None = None
 
 class AlertRead(BaseModel):
     id: UUID
