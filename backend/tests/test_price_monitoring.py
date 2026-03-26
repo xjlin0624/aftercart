@@ -89,6 +89,22 @@ def test_enqueue_candidate_price_checks_only_picks_active_items_with_product_url
     assert selected == queued_ids
 
 
+def test_enqueue_candidate_price_checks_respects_batch_size():
+    # 3 eligible items but batch_size=2 — only 2 should be selected
+    order_items = [
+        build_order_item(active=True, product_url="https://example.com/1"),
+        build_order_item(active=True, product_url="https://example.com/2"),
+        build_order_item(active=True, product_url="https://example.com/3"),
+    ]
+    selected = []
+
+    queued_ids = enqueue_candidate_price_checks(order_items, batch_size=2, delay_fn=selected.append)
+
+    assert len(queued_ids) == 2
+    assert queued_ids == [str(order_items[0].id), str(order_items[1].id)]
+    assert selected == queued_ids
+
+
 def test_process_order_item_price_check_creates_snapshot_and_updates_current_price():
     # paid_price=120, scraped=79.99, delta=40.01 >= default threshold 10 → alert created too
     order_item = build_order_item()
@@ -124,6 +140,40 @@ def test_process_order_item_price_check_skips_unsupported_retailer():
     assert result["status"] == "skipped_unsupported_retailer"
     assert result["alert_created"] is False
     assert result["alert_skipped_duplicate"] is False
+    assert session.committed is False
+    assert session.added == []
+
+
+def test_process_order_item_price_check_skips_missing_order_item():
+    session = FakeSession(values=None)  # scalar_one_or_none returns None
+
+    result = process_order_item_price_check(
+        session=session,
+        order_item_id=str(uuid4()),
+    )
+
+    assert result["status"] == "skipped_missing_order_item"
+    assert result["alert_created"] is False
+    assert result["alert_skipped_duplicate"] is False
+    assert session.committed is False
+
+
+def test_process_order_item_price_check_skips_adapter_not_implemented():
+    class StubAdapter:
+        def fetch_current_price(self, _order_item):
+            raise NotImplementedError
+
+    order_item = build_order_item(retailer="nike")
+    session = FakeSession(order_item)
+
+    result = process_order_item_price_check(
+        session=session,
+        order_item_id=str(order_item.id),
+        adapter_lookup=lambda _: StubAdapter(),
+    )
+
+    assert result["status"] == "skipped_unsupported_retailer"
+    assert result["alert_created"] is False
     assert session.committed is False
     assert session.added == []
 
@@ -263,8 +313,21 @@ def test_build_price_drop_alert_fields():
     assert alert.status == AlertStatus.new
     assert alert.user_id == item.user_id
     assert alert.order_item_id == item.id
+    assert alert.order_id == item.order_id
     assert alert.evidence["price_at_purchase"] == 100.0
     assert alert.evidence["price_now"] == 75.0
+    assert alert.evidence["product_url"] == item.product_url
+    assert str(snapshot.id) in alert.evidence["price_snapshot_ids"]
+
+
+def test_build_price_drop_alert_recommendation_rationale_format():
+    item = build_order_item(paid_price=100.0)
+    snapshot = _fake_snapshot(item, scraped_price=75.0)
+    alert = build_price_drop_alert(item, snapshot, threshold=10.0)
+
+    assert "$75.00" in alert.recommendation_rationale
+    assert "$25.00" in alert.recommendation_rationale
+    assert "$100.00" in alert.recommendation_rationale
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +448,15 @@ def test_compute_recommended_action_no_order():
     action, _, steps = compute_recommended_action(None, date.today())
     assert action == RecommendedAction.no_action
     assert steps == 0
+
+
+def test_compute_recommended_action_return_deadline_is_today():
+    # return_deadline >= today includes today itself — should be return_and_rebuy, not no_action
+    item = build_order_item(price_match_eligible=False, return_deadline=date.today())
+    action, effort, steps = compute_recommended_action(item.order, date.today())
+    assert action == RecommendedAction.return_and_rebuy
+    assert effort == EffortLevel.medium
+    assert steps == 7
 
 
 # ---------------------------------------------------------------------------
