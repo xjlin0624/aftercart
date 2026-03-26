@@ -1,6 +1,7 @@
 """
-Tests for GET /api/alerts, PATCH /api/alerts/{id},
-and GET /api/alerts/{id}/recommendation.
+Tests for GET /api/alerts, GET /api/alerts/{id},
+PATCH /api/alerts/{id}/resolve, PATCH /api/alerts/{id}/dismiss,
+PATCH /api/alerts/{id}, and GET /api/alerts/{id}/recommendation.
 Uses TestClient + dependency_overrides, no real DB.
 """
 from datetime import datetime, timezone
@@ -163,6 +164,151 @@ def test_list_alerts_returns_correct_recommendation_fields():
     assert data[0]["recommended_action"] == "return_and_rebuy"
     assert data[0]["estimated_savings"] == 30.0
     assert data[0]["priority"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/alerts/{alert_id}
+# ---------------------------------------------------------------------------
+
+def test_get_alert_returns_alert():
+    user = _make_user()
+    alert = _make_alert(user.id)
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.get(f"/api/alerts/{alert.id}")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == str(alert.id)
+    assert data["user_id"] == str(user.id)
+    assert data["recommended_action"] == "price_match"
+
+
+def test_get_alert_not_found_returns_404():
+    user = _make_user()
+    client = _make_client(FakeAlertsSession(), user)
+
+    resp = client.get(f"/api/alerts/{uuid4()}")
+
+    assert resp.status_code == 404
+
+
+def test_get_alert_owned_by_other_user_returns_404():
+    user = _make_user()
+    alert = _make_alert(uuid4())
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.get(f"/api/alerts/{alert.id}")
+
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/alerts/{alert_id}/resolve
+# ---------------------------------------------------------------------------
+
+def test_resolve_alert_sets_status_and_resolved_at():
+    user = _make_user()
+    alert = _make_alert(user.id, alert_status=AlertStatus.new)
+    assert alert.resolved_at is None
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.patch(f"/api/alerts/{alert.id}/resolve")
+
+    assert resp.status_code == 200
+    assert alert.status == AlertStatus.resolved
+    assert alert.resolved_at is not None
+    assert session.committed is True
+
+
+def test_resolve_alert_is_idempotent():
+    user = _make_user()
+    alert = _make_alert(user.id, alert_status=AlertStatus.resolved)
+    original_ts = datetime.now(timezone.utc)
+    alert.resolved_at = original_ts
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.patch(f"/api/alerts/{alert.id}/resolve")
+
+    assert resp.status_code == 200
+    assert alert.resolved_at == original_ts  # not overwritten
+
+
+def test_resolve_alert_not_found_returns_404():
+    user = _make_user()
+    client = _make_client(FakeAlertsSession(), user)
+
+    resp = client.patch(f"/api/alerts/{uuid4()}/resolve")
+
+    assert resp.status_code == 404
+
+
+def test_resolve_alert_owned_by_other_user_returns_404():
+    user = _make_user()
+    alert = _make_alert(uuid4())
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.patch(f"/api/alerts/{alert.id}/resolve")
+
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/alerts/{alert_id}/dismiss
+# ---------------------------------------------------------------------------
+
+def test_dismiss_alert_sets_status_and_resolved_at():
+    user = _make_user()
+    alert = _make_alert(user.id, alert_status=AlertStatus.new)
+    assert alert.resolved_at is None
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.patch(f"/api/alerts/{alert.id}/dismiss")
+
+    assert resp.status_code == 200
+    assert alert.status == AlertStatus.dismissed
+    assert alert.resolved_at is not None
+    assert session.committed is True
+
+
+def test_dismiss_alert_is_idempotent():
+    user = _make_user()
+    alert = _make_alert(user.id, alert_status=AlertStatus.dismissed)
+    original_ts = datetime.now(timezone.utc)
+    alert.resolved_at = original_ts
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.patch(f"/api/alerts/{alert.id}/dismiss")
+
+    assert resp.status_code == 200
+    assert alert.resolved_at == original_ts  # not overwritten
+
+
+def test_dismiss_alert_not_found_returns_404():
+    user = _make_user()
+    client = _make_client(FakeAlertsSession(), user)
+
+    resp = client.patch(f"/api/alerts/{uuid4()}/dismiss")
+
+    assert resp.status_code == 404
+
+
+def test_dismiss_alert_owned_by_other_user_returns_404():
+    user = _make_user()
+    alert = _make_alert(uuid4())
+    session = FakeAlertsSession(alert_by_id={str(alert.id): alert})
+    client = _make_client(session, user)
+
+    resp = client.patch(f"/api/alerts/{alert.id}/dismiss")
+
+    assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------

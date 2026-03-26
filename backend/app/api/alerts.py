@@ -38,6 +38,22 @@ def list_alerts(
     return list(db.execute(stmt).scalars().all())
 
 
+@router.get("/{alert_id}", response_model=AlertRead)
+def get_alert(
+    alert_id: UUID,
+    db: DB,
+    current_user: CurrentUser,
+) -> Alert:
+    """
+    Return a single alert by ID.
+    Returns 404 if the alert does not exist or belongs to another user.
+    """
+    alert = db.get(Alert, alert_id)
+    if alert is None or alert.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    return alert
+
+
 @router.get("/{alert_id}/recommendation", response_model=ExplainedRecommendation)
 def get_alert_recommendation(
     alert_id: UUID,
@@ -61,6 +77,50 @@ def get_alert_recommendation(
             detail="This alert has no recommendation",
         )
     return build_explained_recommendation(alert)
+
+
+@router.patch("/{alert_id}/resolve", response_model=AlertRead)
+def resolve_alert(
+    alert_id: UUID,
+    db: DB,
+    current_user: CurrentUser,
+) -> Alert:
+    """
+    Mark an alert as resolved and record the resolution timestamp.
+    Idempotent: resolved_at is only set on the first call.
+    Returns 404 if the alert does not exist or belongs to another user.
+    """
+    alert = db.get(Alert, alert_id)
+    if alert is None or alert.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    alert.status = AlertStatus.resolved
+    if alert.resolved_at is None:
+        alert.resolved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(alert)
+    return alert
+
+
+@router.patch("/{alert_id}/dismiss", response_model=AlertRead)
+def dismiss_alert(
+    alert_id: UUID,
+    db: DB,
+    current_user: CurrentUser,
+) -> Alert:
+    """
+    Mark an alert as dismissed and record the resolution timestamp.
+    Idempotent: resolved_at is only set on the first call.
+    Returns 404 if the alert does not exist or belongs to another user.
+    """
+    alert = db.get(Alert, alert_id)
+    if alert is None or alert.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    alert.status = AlertStatus.dismissed
+    if alert.resolved_at is None:
+        alert.resolved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(alert)
+    return alert
 
 
 @router.patch("/{alert_id}", response_model=AlertRead)
