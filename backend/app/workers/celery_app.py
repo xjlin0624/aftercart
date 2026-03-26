@@ -32,10 +32,3 @@ celery_app.conf.update(
     },
 )
 celery_app.set_default()
-
-
-def register_task_modules() -> None:
-    from ..tasks import price_monitoring, subscriptions  # noqa: F401
-
-
-register_task_modules()

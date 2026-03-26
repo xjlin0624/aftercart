@@ -18,6 +18,10 @@ import app.models.user_preferences  # noqa: F401
 import app.models.order  # noqa: F401
 import app.models.order_item  # noqa: F401
 import app.models.price_snapshot  # noqa: F401
+import app.models.alert  # noqa: F401
+import app.models.delivery_event  # noqa: F401
+import app.models.subscription  # noqa: F401
+import app.models.outcome_log  # noqa: F401
 
 config = context.config
 
