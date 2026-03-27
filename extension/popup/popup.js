@@ -16,7 +16,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
       errorEl.classList.add("hidden");
-      // Send login request (reuses auth.js logic; inline here for popup context)
       const res = await fetch("http://localhost:8000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -67,7 +66,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const card = document.createElement("div");
       card.className = "order-card";
       card.innerHTML = `
-        <h3>${order.retailer} — ${order.external_order_id}</h3>
+        <h3>${order.retailer} — ${order.retailer_order_id}</h3>
         <div class="meta">${order.order_date} · $${order.total?.toFixed(2) || "—"}</div>
       `;
       list.appendChild(card);
@@ -86,7 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       card.className = `alert-card ${alertType}`;
       card.innerHTML = `
         <h3>${alert.title}</h3>
-        <div class="meta">${alert.message}</div>
+        <div class="meta">${alert.body}</div>
       `;
       list.appendChild(card);
     }
@@ -95,7 +94,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function loadSavings() {
     try {
       const res = await sendToBackground({ type: "GET_ORDERS" });
-      // Placeholder: backend should provide a /savings endpoint
       const el = document.getElementById("total-savings");
       el.textContent = "$0.00"; // TODO: wire to real savings API
     } catch (e) { /* ignore */ }
