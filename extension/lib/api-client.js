@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api"; // TODO: make configurable
+export const API_BASE = "http://localhost:8000/api"; // TODO: make configurable
 
 async function getAuthToken() {
   const { authToken } = await chrome.storage.local.get("authToken");
@@ -34,7 +34,7 @@ async function apiRequest(method, path, body = null) {
 }
 
 // Convenience wrappers
-const api = {
+export const api = {
   get:  (path)       => apiRequest("GET", path),
   post: (path, body) => apiRequest("POST", path, body),
   put:  (path, body) => apiRequest("PUT", path, body),

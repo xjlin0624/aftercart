@@ -1,3 +1,6 @@
+import { api } from "../lib/api-client.js";
+import { isAuthenticated } from "../lib/auth.js";
+
 // --- Message handler: route content script messages to the API ---
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "ORDERS_CAPTURED") {
