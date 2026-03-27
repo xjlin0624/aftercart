@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum, UUID
 
 revision: str = "0007"
 down_revision: Union[str, None] = "0006"
@@ -17,15 +17,25 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 # Mirrors DeliveryEventType in app/models/enums.py
-delivery_event_type = sa.Enum(
+# create_type=False: we manage creation/deletion manually via raw SQL below
+delivery_event_type = PgEnum(
     "eta_updated", "status_changed", "tracking_stalled",
     "anomaly_detected", "delivered",
     name="deliveryeventtype",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    delivery_event_type.create(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE deliveryeventtype AS ENUM (
+                'eta_updated', 'status_changed', 'tracking_stalled',
+                'anomaly_detected', 'delivered'
+            );
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
 
     op.create_table(
         "delivery_events",
@@ -57,4 +67,4 @@ def downgrade() -> None:
     op.drop_index("ix_delivery_events_is_anomaly", table_name="delivery_events")
     op.drop_index("ix_delivery_events_order_id", table_name="delivery_events")
     op.drop_table("delivery_events")
-    delivery_event_type.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP TYPE IF EXISTS deliveryeventtype"))

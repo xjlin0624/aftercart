@@ -9,19 +9,25 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, ENUM as PgEnum, UUID
 
 revision: str = "0002"
 down_revision: Union[str, None] = "0001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-# Mirrors the MessageTone enum in app/models/enums.py
-message_tone = sa.Enum("polite", "firm", "concise", name="messagetone")
+# create_type=False: we manage creation/deletion manually via raw SQL below
+message_tone = PgEnum("polite", "firm", "concise", name="messagetone", create_type=False)
 
 
 def upgrade() -> None:
-    message_tone.create(op.get_bind(), checkfirst=True)
+    # Idempotent enum creation — no IF NOT EXISTS in Postgres TYPE, so use DO block
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE messagetone AS ENUM ('polite', 'firm', 'concise');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
 
     op.create_table(
         "user_preferences",
@@ -87,4 +93,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_user_preferences_user_id", table_name="user_preferences")
     op.drop_table("user_preferences")
-    message_tone.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP TYPE IF EXISTS messagetone"))

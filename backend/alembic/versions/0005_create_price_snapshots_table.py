@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum, UUID
 
 revision: str = "0005"
 down_revision: Union[str, None] = "0004"
@@ -17,14 +17,23 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 # Mirrors the SnapshotSource enum in app/models/enums.py
-snapshot_source = sa.Enum(
+# create_type=False: we manage creation/deletion manually via raw SQL below
+snapshot_source = PgEnum(
     "scheduled_job", "manual_refresh", "extension_capture",
     name="snapshotsource",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    snapshot_source.create(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE snapshotsource AS ENUM (
+                'scheduled_job', 'manual_refresh', 'extension_capture'
+            );
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
 
     op.create_table(
         "price_snapshots",
@@ -63,4 +72,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_price_snapshots_order_item_scraped_at", table_name="price_snapshots")
     op.drop_table("price_snapshots")
-    snapshot_source.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP TYPE IF EXISTS snapshotsource"))

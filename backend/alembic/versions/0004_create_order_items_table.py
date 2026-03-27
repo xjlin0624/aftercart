@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum, UUID
 
 revision: str = "0004"
 down_revision: Union[str, None] = "0003"
@@ -17,14 +17,23 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 # Mirrors the MonitoringStoppedReason enum in app/models/enums.py
-monitoring_stopped_reason = sa.Enum(
+# create_type=False: we manage creation/deletion manually via raw SQL below
+monitoring_stopped_reason = PgEnum(
     "return_window_closed", "user_disabled", "delivered_and_settled", "item_unavailable",
     name="monitoringstoppedreason",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    monitoring_stopped_reason.create(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE monitoringstoppedreason AS ENUM (
+                'return_window_closed', 'user_disabled', 'delivered_and_settled', 'item_unavailable'
+            );
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
 
     op.create_table(
         "order_items",
@@ -77,4 +86,4 @@ def downgrade() -> None:
     op.drop_index("ix_order_items_user_id", table_name="order_items")
     op.drop_index("ix_order_items_order_id", table_name="order_items")
     op.drop_table("order_items")
-    monitoring_stopped_reason.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP TYPE IF EXISTS monitoringstoppedreason"))

@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum, JSONB, UUID
 
 revision: str = "0006"
 down_revision: Union[str, None] = "0005"
@@ -17,32 +17,69 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 # Mirrors enums in app/models/enums.py
-alert_type = sa.Enum(
+# create_type=False: we manage creation/deletion manually via raw SQL below
+alert_type = PgEnum(
     "price_drop", "delivery_anomaly", "subscription_detected",
     "return_window_expiring", "alternative_product",
     name="alerttype",
+    create_type=False,
 )
-alert_status = sa.Enum(
+alert_status = PgEnum(
     "new", "viewed", "resolved", "dismissed", "expired",
     name="alertstatus",
+    create_type=False,
 )
-alert_priority = sa.Enum(
+alert_priority = PgEnum(
     "high", "medium", "low",
     name="alertpriority",
+    create_type=False,
 )
-recommended_action = sa.Enum(
+recommended_action = PgEnum(
     "price_match", "return_and_rebuy", "no_action",
     name="recommendedaction",
+    create_type=False,
 )
-effort_level = sa.Enum(
+effort_level = PgEnum(
     "low", "medium", "high",
     name="effortlevel",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    for enum in (alert_type, alert_status, alert_priority, recommended_action, effort_level):
-        enum.create(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE alerttype AS ENUM (
+                'price_drop', 'delivery_anomaly', 'subscription_detected',
+                'return_window_expiring', 'alternative_product'
+            );
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE alertstatus AS ENUM ('new', 'viewed', 'resolved', 'dismissed', 'expired');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE alertpriority AS ENUM ('high', 'medium', 'low');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE recommendedaction AS ENUM ('price_match', 'return_and_rebuy', 'no_action');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE effortlevel AS ENUM ('low', 'medium', 'high');
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
 
     op.create_table(
         "alerts",
@@ -109,5 +146,8 @@ def downgrade() -> None:
     op.drop_index("ix_alerts_order_item_id", table_name="alerts")
     op.drop_index("ix_alerts_user_id", table_name="alerts")
     op.drop_table("alerts")
-    for enum in (effort_level, recommended_action, alert_priority, alert_status, alert_type):
-        enum.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP TYPE IF EXISTS effortlevel"))
+    op.execute(sa.text("DROP TYPE IF EXISTS recommendedaction"))
+    op.execute(sa.text("DROP TYPE IF EXISTS alertpriority"))
+    op.execute(sa.text("DROP TYPE IF EXISTS alertstatus"))
+    op.execute(sa.text("DROP TYPE IF EXISTS alerttype"))

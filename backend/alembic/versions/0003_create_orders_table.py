@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum, JSONB, UUID
 
 revision: str = "0003"
 down_revision: Union[str, None] = "0002"
@@ -17,14 +17,23 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 # Mirrors the OrderStatus enum in app/models/enums.py
-order_status = sa.Enum(
+# create_type=False: we manage creation/deletion manually via raw SQL below
+order_status = PgEnum(
     "pending", "shipped", "in_transit", "delivered", "cancelled", "returned",
     name="orderstatus",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    order_status.create(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE orderstatus AS ENUM (
+                'pending', 'shipped', 'in_transit', 'delivered', 'cancelled', 'returned'
+            );
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$;
+    """))
 
     op.create_table(
         "orders",
@@ -80,4 +89,4 @@ def downgrade() -> None:
     op.drop_index("ix_orders_order_date", table_name="orders")
     op.drop_index("ix_orders_user_id", table_name="orders")
     op.drop_table("orders")
-    order_status.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP TYPE IF EXISTS orderstatus"))
