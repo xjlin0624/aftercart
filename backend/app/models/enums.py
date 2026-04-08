@@ -13,7 +13,7 @@ class OrderStatus(str, enum.Enum):
 class AlertType(str, enum.Enum):
     price_drop = "price_drop"
     delivery_anomaly = "delivery_anomaly"
-return_window_expiring = "return_window_expiring"
+    return_window_expiring = "return_window_expiring"
     alternative_product = "alternative_product"
 
 
