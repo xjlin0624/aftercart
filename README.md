@@ -61,23 +61,17 @@ This project builds a "Post-Purchase Uncertainty Reducer" that helps shoppers fe
 
 - ***FR-14 (SHOULD)** Plan-B Suggestions for Delays*
 
-### Subscription & Recurring Spend Detection
-
-- **FR-15 (MUST)** Recurring Purchase/Subscription Flags
-
-- **FR-16 (MUST)** Cancellation Guidance
-
 ### Customer Support Message Assistance & Evidence
 
-- **FR-17 (MUST)** Message Templates
+- **FR-15 (MUST)** Message Templates
 
-- **FR-18 (MUST)** Evidence Bundling
+- **FR-16 (MUST)** Evidence Bundling
 
 ### Outcome Tracking & Savings
 
-- **FR-19 (MUST)** User Outcome Logging
+- **FR-17 (MUST)** User Outcome Logging
 
-- **FR-20 (MUST)** Savings Dashboard
+- **FR-18 (MUST)** Savings Dashboard
 
 ---
 
@@ -91,17 +85,17 @@ This project builds a "Post-Purchase Uncertainty Reducer" that helps shoppers fe
 ### Start
 
 ```bash
-# 1. Copy env file (first time only)
+# 1. Copy env file and fill in DATABASE_URL with the shared Neon connection string (first time only)
 cp .env.example .env
 
-# 2. Start postgres + redis
-docker compose up postgres redis -d
+# 2. Start redis
+docker compose up redis -d
 
 # 3. Run migrations (first time only)
-cd backend && DATABASE_URL=postgresql+psycopg://aftercart:aftercart@localhost:5432/aftercart alembic upgrade head && cd ..
+cd backend && alembic upgrade head && cd ..
 
 # 4. Start API server (keep this terminal open)
-cd backend && DATABASE_URL=postgresql+psycopg://aftercart:aftercart@localhost:5432/aftercart uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # 5. In a new terminal — start frontend (keep this terminal open)
 cd frontend && npm run dev
