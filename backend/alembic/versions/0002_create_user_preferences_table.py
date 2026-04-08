@@ -57,12 +57,6 @@ def upgrade() -> None:
             server_default=sa.true(),
         ),
         sa.Column(
-            "notify_subscription",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.true(),
-        ),
-        sa.Column(
             "push_notifications_enabled",
             sa.Boolean(),
             nullable=False,

@@ -55,8 +55,6 @@ class FakePrefsSession:
                 obj.notify_price_drop = True
             if obj.notify_delivery_anomaly is None:
                 obj.notify_delivery_anomaly = True
-            if obj.notify_subscription is None:
-                obj.notify_subscription = True
             if obj.push_notifications_enabled is None:
                 obj.push_notifications_enabled = False
             if obj.preferred_message_tone is None:
@@ -97,7 +95,6 @@ def _make_prefs(user: User) -> UserPreferences:
         min_savings_threshold=10.0,
         notify_price_drop=True,
         notify_delivery_anomaly=True,
-        notify_subscription=True,
         push_notifications_enabled=False,
         preferred_message_tone=MessageTone.polite,
         monitored_retailers=[],
@@ -218,7 +215,7 @@ def test_patch_creates_defaults_if_no_prefs_exist():
     client = _make_client(session, user)
 
     resp = client.patch("/api/users/me/preferences", json={
-        "notify_subscription": False,
+        "notify_price_drop": False,
     })
 
     assert resp.status_code == 200

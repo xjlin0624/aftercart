@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 # Mirrors enums in app/models/enums.py
 # create_type=False: we manage creation/deletion manually via raw SQL below
 alert_type = PgEnum(
-    "price_drop", "delivery_anomaly", "subscription_detected",
+    "price_drop", "delivery_anomaly",
     "return_window_expiring", "alternative_product",
     name="alerttype",
     create_type=False,
@@ -50,7 +50,7 @@ def upgrade() -> None:
     op.execute(sa.text("""
         DO $$ BEGIN
             CREATE TYPE alerttype AS ENUM (
-                'price_drop', 'delivery_anomaly', 'subscription_detected',
+                'price_drop', 'delivery_anomaly',
                 'return_window_expiring', 'alternative_product'
             );
         EXCEPTION WHEN duplicate_object THEN null;

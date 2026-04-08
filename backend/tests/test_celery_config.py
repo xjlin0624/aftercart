@@ -10,6 +10,3 @@ def test_beat_schedule_contains_expected_cycles():
     assert schedule["price-check-cycle"]["task"] == "price_check_cycle"
     assert schedule["price-check-cycle"]["schedule"] == timedelta(minutes=15)
 
-    assert "subscription-flag-refresh-cycle" in schedule
-    assert schedule["subscription-flag-refresh-cycle"]["task"] == "subscription_flag_refresh_cycle"
-    assert schedule["subscription-flag-refresh-cycle"]["schedule"] == timedelta(minutes=360)
