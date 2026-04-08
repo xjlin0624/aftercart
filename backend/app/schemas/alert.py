@@ -36,6 +36,14 @@ class ExplainedRecommendation(BaseModel):
     action_deadline: date | None
     evidence: dict
 
+class GeneratedMessage(BaseModel):
+    """Response for a generated customer support message."""
+    alert_id: UUID
+    tone: str
+    message: str
+    cached: bool
+
+
 class AlertUpdate(BaseModel):
     status: AlertStatus | None = None
     generated_messages: dict | None = None

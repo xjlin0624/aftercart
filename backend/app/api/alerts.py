@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session
 
 from .deps import get_current_user, get_db
 from ..models.alert import Alert
-from ..models.enums import AlertStatus
+from ..models.enums import AlertStatus, MessageTone
 from ..models.user import User
-from ..schemas.alert import AlertRead, AlertUpdate, ExplainedRecommendation
+from ..models.user_preferences import UserPreferences
+from ..schemas.alert import AlertRead, AlertUpdate, ExplainedRecommendation, GeneratedMessage
+from ..services.gemini import generate_support_message
 from ..tasks.price_monitoring import build_explained_recommendation
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -121,6 +123,61 @@ def dismiss_alert(
     db.commit()
     db.refresh(alert)
     return alert
+
+
+@router.get("/{alert_id}/message", response_model=GeneratedMessage)
+def get_support_message(
+    alert_id: UUID,
+    db: DB,
+    current_user: CurrentUser,
+    tone: MessageTone | None = Query(default=None),
+) -> GeneratedMessage:
+    """
+    Generate (or return cached) a customer support message for an alert.
+
+    Tone defaults to the user's preferred_message_tone from their preferences.
+    Pass ?tone=polite|firm|concise to override.
+    Generated messages are cached in alert.generated_messages by tone.
+    """
+    alert = db.get(Alert, alert_id)
+    if alert is None or alert.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    # Resolve tone: query param > user preference > default polite
+    if tone is None:
+        prefs = db.execute(
+            select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+        ).scalar_one_or_none()
+        tone = prefs.preferred_message_tone if prefs else MessageTone.polite
+
+    tone_key = tone.value
+
+    # Return cached message if available
+    cached_messages = alert.generated_messages or {}
+    if tone_key in cached_messages:
+        return GeneratedMessage(
+            alert_id=alert_id,
+            tone=tone_key,
+            message=cached_messages[tone_key],
+            cached=True,
+        )
+
+    # Generate via Gemini
+    try:
+        message = generate_support_message(alert, tone)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+    # Cache the result
+    alert.generated_messages = {**cached_messages, tone_key: message}
+    db.commit()
+
+    return GeneratedMessage(
+        alert_id=alert_id,
+        tone=tone_key,
+        message=message,
+        cached=False,
+    )
 
 
 @router.patch("/{alert_id}", response_model=AlertRead)
