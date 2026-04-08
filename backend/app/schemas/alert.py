@@ -42,6 +42,7 @@ class GeneratedMessage(BaseModel):
     tone: str
     message: str
     cached: bool
+    fallback: bool = False
 
 
 class AlertUpdate(BaseModel):

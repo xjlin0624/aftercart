@@ -126,6 +126,7 @@ docker compose down
 | `DATABASE_URL` | Shared Neon dev connection string | Neon prod branch connection string |
 | `JWT_SECRET` | Anything | Strong random secret (required) |
 | `ALLOWED_ORIGINS` | Leave empty (localhost auto-allowed) | Comma-separated frontend URLs |
+| `GEMINI_API_KEY` | Free key from [aistudio.google.com](https://aistudio.google.com/apikey) | Same — each dev gets their own key |
 | `LOG_LEVEL` | `INFO` or `DEBUG` | `INFO` or `WARNING` |
 
 Swagger UI (`/api/docs`) is only enabled when `APP_ENV=development`.

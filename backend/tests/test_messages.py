@@ -246,7 +246,7 @@ def test_generate_message_price_match_no_price_drop_returns_422():
     assert resp.status_code == 422
 
 
-def test_generate_message_gemini_unavailable_returns_503():
+def test_generate_message_gemini_unavailable_returns_fallback():
     user = _make_user()
     order = _make_order(user.id)
     session = FakeOrderSession(order=order)
@@ -259,4 +259,7 @@ def test_generate_message_gemini_unavailable_returns_503():
             "request_type": "price_match",
         })
 
-    assert resp.status_code == 503
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["fallback"] is True
+    assert len(data["message"]) > 0

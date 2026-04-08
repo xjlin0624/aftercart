@@ -273,7 +273,7 @@ def test_get_message_other_users_alert_returns_404():
     assert resp.status_code == 404
 
 
-def test_get_message_gemini_unavailable_returns_503():
+def test_get_message_gemini_unavailable_returns_fallback():
     user = _make_user()
     alert = _make_alert(user.id)
     session = FakeMessageSession(alert=alert, prefs=_make_prefs(user.id))
@@ -282,4 +282,8 @@ def test_get_message_gemini_unavailable_returns_503():
     with patch("backend.app.api.alerts.generate_support_message", side_effect=RuntimeError("GEMINI_API_KEY is not configured.")):
         resp = client.get(f"/api/alerts/{alert.id}/message")
 
-    assert resp.status_code == 503
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["fallback"] is True
+    assert len(data["message"]) > 0
+    assert data["cached"] is False

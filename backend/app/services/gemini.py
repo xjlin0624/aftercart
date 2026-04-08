@@ -70,6 +70,52 @@ def _build_prompt(alert: Alert, tone: MessageTone) -> str:
     )
 
 
+def static_fallback_for_alert(alert: Alert) -> str:
+    """Static template used when Gemini is unavailable for an alert-based message."""
+    if alert.alert_type == AlertType.price_drop:
+        paid = alert.evidence.get("paid_price") if alert.evidence else None
+        current = alert.evidence.get("current_price") if alert.evidence else None
+        price_info = (
+            f" I originally paid ${paid:.2f} and the current price is ${current:.2f}."
+            if paid and current else ""
+        )
+        return (
+            f"Hello, I am writing to request a price match for {alert.title}.{price_info} "
+            f"Could you please process a partial refund for the difference? Thank you."
+        )
+    if alert.alert_type == AlertType.delivery_anomaly:
+        return (
+            f"Hello, I am writing to inquire about an issue with my delivery: {alert.body} "
+            f"Could you please look into this and provide an update? Thank you."
+        )
+    return (
+        f"Hello, I am writing regarding the following issue: {alert.body} "
+        f"Could you please assist me? Thank you."
+    )
+
+
+def static_fallback_for_order(order: Order, request_type: str) -> str:
+    """Static template used when Gemini is unavailable for an order-based message."""
+    item_names = ", ".join(item.product_name for item in order.items) if order.items else "my order"
+    if request_type == "price_match":
+        return (
+            f"Hello, I recently purchased {item_names} from {order.retailer} "
+            f"and noticed the price has since dropped. "
+            f"I would like to request a price match for the difference. "
+            f"Could you please assist me? Thank you."
+        )
+    if request_type == "return_request":
+        deadline = f" My return deadline is {order.return_deadline}." if order.return_deadline else ""
+        return (
+            f"Hello, I would like to initiate a return for {item_names} purchased from {order.retailer}.{deadline} "
+            f"Could you please provide instructions on how to proceed? Thank you."
+        )
+    return (
+        f"Hello, I am writing regarding my order from {order.retailer} for {item_names}. "
+        f"Could you please assist me? Thank you."
+    )
+
+
 def _build_order_prompt(order: Order, request_type: str, tone: MessageTone) -> str:
     tone_instruction = _TONE_INSTRUCTIONS[tone]
 

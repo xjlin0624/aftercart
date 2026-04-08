@@ -9,7 +9,7 @@ from .deps import get_current_user, get_db
 from ..models.enums import MessageTone
 from ..models.order import Order
 from ..models.user import User
-from ..services.gemini import generate_message_from_order
+from ..services.gemini import generate_message_from_order, static_fallback_for_order
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -30,6 +30,7 @@ class MessageGenerateResponse(BaseModel):
     request_type: str
     tone: str
     message: str
+    fallback: bool = False
 
 
 @router.post("/generate", response_model=MessageGenerateResponse)
@@ -67,14 +68,17 @@ def generate_order_message(
             detail="No price drop detected on any item in this order",
         )
 
+    is_fallback = False
     try:
         message = generate_message_from_order(order, body.request_type, body.tone)
-    except RuntimeError as e:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    except RuntimeError:
+        message = static_fallback_for_order(order, body.request_type)
+        is_fallback = True
 
     return MessageGenerateResponse(
         order_id=body.order_id,
         request_type=body.request_type,
         tone=body.tone.value,
         message=message,
+        fallback=is_fallback,
     )
