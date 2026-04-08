@@ -2,7 +2,7 @@
 
 *group 1: Yingchao Cai, Bo Hu, Xuelan Lin, Weiyi Sun*
 
-This project builds a "Post-Purchase Uncertainty Reducer" that helps shoppers feel confident after checkout by aggregating orders across retailers, monitoring price/delivery/recurring-spend risks, and providing clear, actionable recommendations (price match, return/rebuy, replacement, or no action).
+This project builds a "Post-Purchase Uncertainty Reducer" that helps shoppers feel confident after checkout by aggregating orders across retailers, monitoring price and delivery risks, and providing clear, actionable recommendations (price match, return/rebuy, replacement, or no action).
 
 ## Objectives
 
@@ -11,13 +11,12 @@ This project builds a "Post-Purchase Uncertainty Reducer" that helps shoppers fe
 1. Cross-retailer Order Aggregation
 2. Price Drop and Better-Deal Monitoring
 3. Delivery Anomaly Detection and Plan B Recommendations
-4. Unused Subscription and Recurring-Spend Detection
-5. Decision-Confidence Visualization
-6. Customer Support Message Assistance
+4. Decision-Confidence Visualization
+5. Customer Support Message Assistance
 
 ### Stretch Goals
-7. Personalized Recommendation Tuning
-8. Amazon Retailer Integration
+6. Personalized Recommendation Tuning
+7. Amazon Retailer Integration
 
 ## Functional Requirements
 
@@ -94,10 +93,14 @@ docker compose up redis -d
 # 3. Run migrations (first time only)
 cd backend && alembic upgrade head && cd ..
 
-# 4. Start API server (keep this terminal open)
+# 4. Seed development data (first time only, requires APP_ENV=development)
+python backend/seed.py
+# To wipe and re-seed: python backend/seed.py --reset
+
+# 5. Start API server (keep this terminal open)
 cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 5. In a new terminal — start frontend (keep this terminal open)
+# 6. In a new terminal — start frontend (keep this terminal open)
 cd frontend && npm run dev
 
 ```
@@ -111,19 +114,31 @@ To log in via the Chrome extension, load the `extension/` folder in Chrome (deve
 ```bash
 # Ctrl+C in the API and frontend terminals, then:
 docker compose down
-
-# To also wipe the database:
-docker compose down -v
 ```
+
+---
+
+## Environment Variables
+
+| Variable | Dev | Production |
+|---|---|---|
+| `APP_ENV` | `development` | `production` |
+| `DATABASE_URL` | Shared Neon dev connection string | Neon prod branch connection string |
+| `JWT_SECRET` | Anything | Strong random secret (required) |
+| `ALLOWED_ORIGINS` | Leave empty (localhost auto-allowed) | Comma-separated frontend URLs |
+| `LOG_LEVEL` | `INFO` or `DEBUG` | `INFO` or `WARNING` |
+
+Swagger UI (`/api/docs`) is only enabled when `APP_ENV=development`.
+The seed script (`seed.py`) refuses to run unless `APP_ENV=development`.
 
 ---
 
 ## Local Scheduler Dev
 
-Copy `.env.example` to `.env`, then start the scheduler stack with:
+Copy `.env.example` to `.env` (with the shared Neon `DATABASE_URL`), then start the scheduler stack with:
 
 ```bash
-docker compose up --build worker beat postgres redis
+docker compose up --build worker beat redis
 ```
 
 Useful Celery entrypoints:

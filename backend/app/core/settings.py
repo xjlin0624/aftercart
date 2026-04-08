@@ -32,6 +32,7 @@ class Settings(BaseSettings):
         default=60,
         alias="DELIVERY_CHECK_INTERVAL_MINUTES",
     )
+    allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     jwt_secret: str = Field(default="change-me-in-production", alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
