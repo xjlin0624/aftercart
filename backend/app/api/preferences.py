@@ -1,17 +1,12 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
-from .deps import get_current_user, get_db
+from .deps import CurrentUser, DB
 from ..models.user import User
 from ..models.user_preferences import UserPreferences
 from ..schemas.user_preferences import UserPreferencesRead, UserPreferencesUpdate
 
 router = APIRouter(prefix="/users/me/preferences", tags=["preferences"])
-
-DB = Annotated[Session, Depends(get_db)]
-CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 def _get_or_create_preferences(db: Session, user: User) -> UserPreferences:

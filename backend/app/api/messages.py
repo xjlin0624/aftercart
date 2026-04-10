@@ -1,20 +1,14 @@
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from .deps import get_current_user, get_db
+from .deps import CurrentUser, DB
 from ..models.enums import MessageTone
 from ..models.order import Order
-from ..models.user import User
 from ..services.gemini import generate_message_from_order, static_fallback_for_order
 
 router = APIRouter(prefix="/messages", tags=["messages"])
-
-DB = Annotated[Session, Depends(get_db)]
-CurrentUser = Annotated[User, Depends(get_current_user)]
 
 _VALID_REQUEST_TYPES = {"price_match", "return_request"}
 

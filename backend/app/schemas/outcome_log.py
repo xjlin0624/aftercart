@@ -26,3 +26,17 @@ class OutcomeLogRead(BaseModel):
     logged_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SavingsByAction(BaseModel):
+    action_taken: ActionTaken
+    count: int
+    total_recovered: float
+
+
+class SavingsSummary(BaseModel):
+    total_recovered: float
+    total_actions: int
+    successful_actions: int
+    by_action: list[SavingsByAction]
+    history: list[OutcomeLogRead]

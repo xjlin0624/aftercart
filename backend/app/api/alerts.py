@@ -1,24 +1,18 @@
 from datetime import datetime, timezone
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from .deps import get_current_user, get_db
+from .deps import CurrentUser, DB
 from ..models.alert import Alert
 from ..models.enums import AlertStatus, MessageTone
-from ..models.user import User
 from ..models.user_preferences import UserPreferences
 from ..schemas.alert import AlertRead, AlertUpdate, ExplainedRecommendation, GeneratedMessage
 from ..services.gemini import generate_support_message, static_fallback_for_alert
 from ..tasks.price_monitoring import build_explained_recommendation
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
-
-DB = Annotated[Session, Depends(get_db)]
-CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 @router.get("", response_model=list[AlertRead])

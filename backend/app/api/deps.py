@@ -47,3 +47,9 @@ def get_current_user(
         raise credentials_error
 
     return user
+
+
+# Shared dependency annotations — import from here instead of repeating
+# Annotated[...] boilerplate in every router.
+DB = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[object, Depends(get_current_user)]

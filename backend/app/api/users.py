@@ -1,14 +1,10 @@
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends
-
-from .deps import get_current_user
+from .deps import CurrentUser
 from ..models.user import User
 from ..schemas.user import UserRead
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 @router.get("/me", response_model=UserRead)

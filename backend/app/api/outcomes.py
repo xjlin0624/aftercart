@@ -1,20 +1,14 @@
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, status
 
-from .deps import get_current_user, get_db
+from .deps import CurrentUser, DB
 from ..models.alert import Alert
 from ..models.order_item import OrderItem
 from ..models.outcome_log import OutcomeLog
-from ..models.user import User
 from ..schemas.outcome_log import OutcomeLogCreate, OutcomeLogRead
 
 router = APIRouter(prefix="/outcomes", tags=["outcomes"])
-
-DB = Annotated[Session, Depends(get_db)]
-CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 @router.post("", response_model=OutcomeLogRead, status_code=status.HTTP_201_CREATED)

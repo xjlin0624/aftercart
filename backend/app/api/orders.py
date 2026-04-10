@@ -1,26 +1,21 @@
 import logging
 from datetime import date, datetime, timedelta
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import field_validator, model_validator
 from sqlalchemy.orm import Session
 
-from .deps import get_current_user, get_db
+from .deps import CurrentUser, DB
 from ..models.enums import SnapshotSource
 from ..models.order import Order
 from ..models.order_item import OrderItem
 from ..models.price_snapshot import PriceSnapshot
-from ..models.user import User
 from ..schemas.order import OrderCreate, OrderRead
 from ..schemas.order_item import OrderItemCreate, OrderItemRead
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 logger = logging.getLogger(__name__)
-
-DB = Annotated[Session, Depends(get_db)]
-CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 # ---------------------------------------------------------------------------

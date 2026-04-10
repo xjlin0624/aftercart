@@ -1,10 +1,7 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from jose import JWTError
-from sqlalchemy.orm import Session
 
-from .deps import get_db
+from .deps import DB
 from ..core.security import (
     create_access_token,
     create_refresh_token,
@@ -20,7 +17,6 @@ from ..schemas.user import UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-DB = Annotated[Session, Depends(get_db)]
 
 @router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def signup(body: SignupRequest, db: DB) -> User:
