@@ -9,8 +9,8 @@ from .api.messages import router as messages_router
 from .api.orders import router as orders_router
 from .api.outcomes import router as outcomes_router
 from .api.preferences import router as preferences_router
-from .api.savings import router as savings_router
 from .api.prices import router as prices_router
+from .api.savings import router as savings_router
 from .api.users import router as users_router
 from .core.settings import get_settings
 

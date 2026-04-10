@@ -7,6 +7,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from ..core.security import decode_token
+from ..models.user import User
 
 bearer_scheme = HTTPBearer()
 
@@ -26,9 +27,7 @@ def get_db() -> Generator[Session, None, None]:
 def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
     db: Annotated[Session, Depends(get_db)],
-):
-    from ..models.user import User
-
+) -> User:
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
@@ -52,4 +51,4 @@ def get_current_user(
 # Shared dependency annotations — import from here instead of repeating
 # Annotated[...] boilerplate in every router.
 DB = Annotated[Session, Depends(get_db)]
-CurrentUser = Annotated[object, Depends(get_current_user)]
+CurrentUser = Annotated[User, Depends(get_current_user)]

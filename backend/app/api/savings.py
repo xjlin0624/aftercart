@@ -17,10 +17,10 @@ def get_savings_summary(
     """
     Return a savings summary for the authenticated user.
 
-    - total_recovered: sum of all logged recovered_value amounts.
+    - total_recovered: sum of recovered_value for confirmed successful actions only.
     - total_actions: count of all outcome log entries.
     - successful_actions: count of entries where was_successful is true.
-    - by_action: per-action-type breakdown of count and total recovered.
+    - by_action: per-action-type breakdown of successful action count and total recovered.
     - history: most recent outcome log entries, newest first (up to ?limit=N).
     """
     uid = current_user.id
@@ -28,6 +28,7 @@ def get_savings_summary(
     total_recovered: float = db.execute(
         select(func.coalesce(func.sum(OutcomeLog.recovered_value), 0.0))
         .where(OutcomeLog.user_id == uid)
+        .where(OutcomeLog.was_successful.is_(True))
     ).scalar()
 
     total_actions: int = db.execute(
@@ -48,6 +49,7 @@ def get_savings_summary(
             func.coalesce(func.sum(OutcomeLog.recovered_value), 0.0).label("total_recovered"),
         )
         .where(OutcomeLog.user_id == uid)
+        .where(OutcomeLog.was_successful.is_(True))
         .group_by(OutcomeLog.action_taken)
     ).all()
 

@@ -2,6 +2,7 @@
 Tests for POST /api/outcomes.
 Uses TestClient + dependency_overrides, no real DB.
 """
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -10,9 +11,8 @@ from fastapi.testclient import TestClient
 from backend.app.api.deps import get_current_user, get_db
 from backend.app.main import app
 from backend.app.models.alert import Alert
-from backend.app.models.enums import ActionTaken, AlertStatus, AlertType, AlertPriority
+from backend.app.models.enums import AlertStatus, AlertType, AlertPriority
 from backend.app.models.order_item import OrderItem
-from backend.app.models.outcome_log import OutcomeLog
 from backend.app.models.user import User
 
 
@@ -47,7 +47,6 @@ class FakeOutcomesSession:
         self.committed = True
 
     def refresh(self, obj):
-        from datetime import datetime, timezone
         if obj.id is None:
             obj.id = uuid4()
         if obj.logged_at is None:
@@ -68,12 +67,12 @@ def _make_user() -> User:
     )
 
 
-def _make_alert(user_id) -> Alert:
+def _make_alert(user_id, *, order_item_id=None) -> Alert:
     return Alert(
         id=uuid4(),
         user_id=user_id,
         order_id=uuid4(),
-        order_item_id=uuid4(),
+        order_item_id=order_item_id,
         alert_type=AlertType.price_drop,
         status=AlertStatus.new,
         priority=AlertPriority.high,
@@ -149,6 +148,161 @@ def test_log_outcome_with_alert_and_item():
     assert data["was_successful"] is True
     assert data["alert_id"] == str(alert.id)
     assert data["order_item_id"] == str(item.id)
+
+
+def test_log_outcome_resolves_linked_alert():
+    user = _make_user()
+    alert = _make_alert(user.id)
+    assert alert.status == AlertStatus.new
+
+    db = FakeOutcomesSession(alert_by_id={str(alert.id): alert})
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    client = TestClient(app)
+    resp = client.post("/api/outcomes", json={
+        "alert_id": str(alert.id),
+        "action_taken": "price_matched",
+        "recovered_value": 20.0,
+        "was_successful": True,
+    })
+
+    assert resp.status_code == 201
+    assert alert.status == AlertStatus.resolved
+    assert alert.resolved_at is not None
+
+
+def test_log_outcome_alert_resolve_is_idempotent():
+    """resolved_at must not be overwritten if already set."""
+    user = _make_user()
+    alert = _make_alert(user.id)
+    original_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    alert.status = AlertStatus.resolved
+    alert.resolved_at = original_time
+
+    db = FakeOutcomesSession(alert_by_id={str(alert.id): alert})
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    client = TestClient(app)
+    resp = client.post("/api/outcomes", json={
+        "alert_id": str(alert.id),
+        "action_taken": "price_matched",
+    })
+
+    assert resp.status_code == 201
+    assert alert.resolved_at == original_time
+
+
+def test_log_outcome_without_alert_does_not_modify_any_alert():
+    """No alert_id means no alert should be touched."""
+    user = _make_user()
+    db = FakeOutcomesSession()
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    client = TestClient(app)
+    resp = client.post("/api/outcomes", json={"action_taken": "ignored"})
+
+    assert resp.status_code == 201
+    assert db.committed is True
+
+
+def test_pending_action_does_not_resolve_alert():
+    """action_taken=pending means the user hasn't acted yet; alert stays open."""
+    user = _make_user()
+    alert = _make_alert(user.id)
+    assert alert.status == AlertStatus.new
+
+    db = FakeOutcomesSession(alert_by_id={str(alert.id): alert})
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    client = TestClient(app)
+    resp = client.post("/api/outcomes", json={
+        "alert_id": str(alert.id),
+        "action_taken": "pending",
+    })
+
+    assert resp.status_code == 201
+    assert alert.status == AlertStatus.new
+    assert alert.resolved_at is None
+
+
+def test_order_item_id_inherited_from_alert():
+    """If alert_id is provided but order_item_id is omitted, inherit it from the alert."""
+    user = _make_user()
+    alert = _make_alert(user.id)
+    # Point the alert at an item that belongs to this user and is in the session
+    item = _make_order_item(user.id)
+    alert.order_item_id = item.id
+
+    db = FakeOutcomesSession(
+        alert_by_id={str(alert.id): alert},
+        item_by_id={str(item.id): item},
+    )
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    client = TestClient(app)
+    resp = client.post("/api/outcomes", json={
+        "alert_id": str(alert.id),
+        "action_taken": "price_matched",
+        "recovered_value": 10.0,
+    })
+
+    assert resp.status_code == 201
+    assert resp.json()["order_item_id"] == str(item.id)
+
+
+def test_inherited_order_item_id_is_ownership_validated():
+    """Item inherited from the alert must still be validated — not blindly trusted."""
+    user = _make_user()
+    alert = _make_alert(user.id)
+    # The alert's order_item_id points to an item owned by a different user
+    other_item = _make_order_item(uuid4())
+    alert.order_item_id = other_item.id
+
+    db = FakeOutcomesSession(
+        alert_by_id={str(alert.id): alert},
+        item_by_id={str(other_item.id): other_item},
+    )
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    client = TestClient(app)
+    resp = client.post("/api/outcomes", json={
+        "alert_id": str(alert.id),
+        "action_taken": "price_matched",
+    })
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Order item not found"
+
+
+def test_explicit_order_item_id_overrides_alert_item():
+    """Explicitly passed order_item_id takes precedence over the alert's own item."""
+    user = _make_user()
+    alert_item = _make_order_item(user.id)
+    alert = _make_alert(user.id, order_item_id=alert_item.id)  # alert has its own item
+    explicit_item = _make_order_item(user.id)                  # different item passed explicitly
+
+    db = FakeOutcomesSession(
+        alert_by_id={str(alert.id): alert},
+        item_by_id={str(explicit_item.id): explicit_item},
+    )
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    client = TestClient(app)
+    resp = client.post("/api/outcomes", json={
+        "alert_id": str(alert.id),
+        "order_item_id": str(explicit_item.id),
+        "action_taken": "price_matched",
+    })
+
+    assert resp.status_code == 201
+    assert resp.json()["order_item_id"] == str(explicit_item.id)
 
 
 def test_log_outcome_unknown_alert_returns_404():

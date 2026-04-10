@@ -120,6 +120,19 @@ def test_summary_returns_correct_totals():
     assert len(data["history"]) == 1
 
 
+def test_total_recovered_only_counts_successful_actions():
+    """total_recovered must not include pending or failed outcomes."""
+    user = _make_user()
+    # DB returns 30.0 for the successful-only sum (not the 80.0 total including failures)
+    db = FakeSavingsSession([30.0, 3, 1, [], []])
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    resp = TestClient(app).get("/api/savings/summary")
+    assert resp.status_code == 200
+    assert resp.json()["total_recovered"] == 30.0
+
+
 def test_summary_empty_returns_zeros():
     user = _make_user()
     db = FakeSavingsSession([0.0, 0, 0, [], []])
