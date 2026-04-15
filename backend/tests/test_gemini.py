@@ -2,7 +2,7 @@
 Tests for Gemini message generation service and GET /api/alerts/{id}/message endpoint.
 Gemini API calls are mocked — no real API key needed.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 from datetime import datetime, timezone
 
@@ -145,8 +145,10 @@ def test_build_prompt_no_placeholder_brackets():
 def test_generate_support_message_raises_without_api_key():
     user = _make_user()
     alert = _make_alert(user.id)
-    with patch("backend.app.services.gemini.get_settings") as mock_settings:
-        mock_settings.return_value.gemini_api_key = ""
+    with patch(
+        "backend.app.services.gemini.generate_cached_gemini_text",
+        side_effect=RuntimeError("GEMINI_API_KEY is not configured."),
+    ):
         with pytest.raises(RuntimeError, match="GEMINI_API_KEY is not configured"):
             generate_support_message(alert, MessageTone.polite)
 
@@ -154,14 +156,10 @@ def test_generate_support_message_raises_without_api_key():
 def test_generate_support_message_returns_text():
     user = _make_user()
     alert = _make_alert(user.id)
-    mock_response = MagicMock()
-    mock_response.text = "  Dear Customer Support, I would like to request a price match.  "
-
-    with patch("backend.app.services.gemini.get_settings") as mock_settings, \
-         patch("backend.app.services.gemini.genai") as mock_genai:
-        mock_settings.return_value.gemini_api_key = "fake-key"
-        mock_genai.Client.return_value.models.generate_content.return_value = mock_response
-
+    with patch(
+        "backend.app.services.gemini.generate_cached_gemini_text",
+        return_value="Dear Customer Support, I would like to request a price match.",
+    ):
         result = generate_support_message(alert, MessageTone.polite)
         assert result == "Dear Customer Support, I would like to request a price match."
 
@@ -169,11 +167,10 @@ def test_generate_support_message_returns_text():
 def test_generate_support_message_wraps_api_error():
     user = _make_user()
     alert = _make_alert(user.id)
-    with patch("backend.app.services.gemini.get_settings") as mock_settings, \
-         patch("backend.app.services.gemini.genai") as mock_genai:
-        mock_settings.return_value.gemini_api_key = "fake-key"
-        mock_genai.Client.return_value.models.generate_content.side_effect = Exception("API error")
-
+    with patch(
+        "backend.app.services.gemini.generate_cached_gemini_text",
+        side_effect=Exception("API error"),
+    ):
         with pytest.raises(RuntimeError, match="Failed to generate message"):
             generate_support_message(alert, MessageTone.polite)
 
