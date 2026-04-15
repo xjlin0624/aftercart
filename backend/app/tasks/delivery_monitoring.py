@@ -13,6 +13,7 @@ from ..models import (
     DeliveryEvent, Order, UserPreferences,
 )
 from ..models.enums import DeliveryEventType, OrderStatus
+from ..scrapers import DeliveryCheckResult, RetailerCircuitOpenError, RetailerNotReadyError, RetailerRateLimitedError, RetailerScrapeError, get_delivery_adapter
 
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,46 @@ def build_delivery_anomaly_alert(order: Order, event: DeliveryEvent) -> Alert:
     )
 
 
+def apply_delivery_check_result(order: Order, result: DeliveryCheckResult) -> list[DeliveryEvent]:
+    events: list[DeliveryEvent] = []
+    previous_status = order.order_status
+    previous_eta = order.estimated_delivery
+
+    if result.tracking_number:
+        order.tracking_number = result.tracking_number
+    if result.carrier:
+        order.carrier = result.carrier
+    if result.estimated_delivery:
+        order.estimated_delivery = result.estimated_delivery
+    if result.delivered_at:
+        order.delivered_at = result.delivered_at
+    if result.order_status:
+        order.order_status = result.order_status
+
+    if result.order_status and result.order_status != previous_status:
+        event_type = (
+            DeliveryEventType.delivered
+            if result.order_status == OrderStatus.delivered
+            else DeliveryEventType.status_changed
+        )
+        events.append(
+            DeliveryEvent(
+                order_id=order.id,
+                event_type=event_type,
+                previous_eta=previous_eta,
+                new_eta=order.estimated_delivery,
+                carrier_status_raw=result.carrier_status_raw,
+                is_anomaly=False,
+                notes=(
+                    f"Delivery status changed from {previous_status.value} "
+                    f"to {result.order_status.value}."
+                ),
+            )
+        )
+
+    return events
+
+
 def _default_last_eta_lookup(session: Session, order_id: UUID) -> date | None:
     """Return the new_eta from the most recent eta_updated event for this order."""
     row = session.execute(
@@ -193,6 +234,7 @@ def process_order_delivery_check(
     last_eta_lookup: Callable = _default_last_eta_lookup,
     last_event_lookup: Callable = _default_last_event_lookup,
     existing_alert_lookup: Callable = _default_existing_delivery_alert_lookup,
+    delivery_adapter_lookup: Callable = get_delivery_adapter,
     stall_threshold_days: int = STALL_THRESHOLD_DAYS,
 ) -> dict[str, Any]:
     order = session.get(Order, UUID(str(order_id)))
@@ -202,7 +244,9 @@ def process_order_delivery_check(
     if order.order_status in _TERMINAL_STATUSES:
         return {"status": "skipped_terminal_order", "order_id": str(order_id), "events_created": 0, "alert_created": False}
 
-    if not order.tracking_number:
+    tracking_number = order.tracking_number if isinstance(order.tracking_number, str) else None
+    order_url = order.order_url if isinstance(getattr(order, "order_url", None), str) else None
+    if not tracking_number and not order_url:
         return {"status": "skipped_no_tracking", "order_id": str(order_id), "events_created": 0, "alert_created": False}
 
     if prefs_lookup is None:
@@ -223,6 +267,37 @@ def process_order_delivery_check(
     events_created = 0
     alert_created = False
     alert_skipped_duplicate = False
+    scraped_delivery_applied = False
+
+    retailer = order.retailer if isinstance(order.retailer, str) else None
+    adapter = delivery_adapter_lookup(retailer)
+    if adapter is not None and order_url:
+        try:
+            delivery_result = adapter.fetch_delivery_status(order)
+        except (RetailerCircuitOpenError, RetailerRateLimitedError, RetailerNotReadyError, RetailerScrapeError) as exc:
+            logger.warning(
+                "Delivery check skipped for retailer=%s order_id=%s status=%s detail=%s",
+                retailer,
+                order.id,
+                exc.status,
+                exc,
+            )
+            return {
+                "status": exc.status,
+                "order_id": str(order.id),
+                "retailer": retailer,
+                "events_created": 0,
+                "alert_created": False,
+                "detail": str(exc),
+            }
+        except NotImplementedError:
+            delivery_result = None
+        else:
+            if delivery_result is not None:
+                scraped_delivery_applied = True
+                for event in apply_delivery_check_result(order, delivery_result):
+                    session.add(event)
+                    events_created += 1
 
     eta_event = detect_eta_slippage(order, last_eta)
     if eta_event is not None:
@@ -246,11 +321,11 @@ def process_order_delivery_check(
                 session.add(build_delivery_anomaly_alert(order, stall_event))
                 alert_created = True
 
-    if events_created > 0:
+    if events_created > 0 or scraped_delivery_applied:
         session.commit()
 
     return {
-        "status": "checked",
+        "status": "checked" if events_created > 0 or scraped_delivery_applied else "checked_no_changes",
         "order_id": str(order_id),
         "events_created": events_created,
         "alert_created": alert_created,
@@ -271,7 +346,9 @@ def enqueue_candidate_delivery_checks(
     for order in orders:
         if order.order_status in _TERMINAL_STATUSES:
             continue
-        if not order.tracking_number:
+        tracking_number = order.tracking_number if isinstance(order.tracking_number, str) else None
+        order_url = order.order_url if isinstance(getattr(order, "order_url", None), str) else None
+        if not tracking_number and not order_url:
             continue
         order_id = str(order.id)
         selected_ids.append(order_id)

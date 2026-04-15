@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..db import session_scope
 from ..models import Subscription, SubscriptionStatus
+from ..services.cancellation_guidance import get_cancellation_guidance
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,17 @@ def recalculate_next_expected_charge(subscription: Subscription):
     return subscription.last_charged_at + timedelta(days=subscription.recurrence_interval_days)
 
 
+def apply_cancellation_guidance(subscription: Subscription) -> bool:
+    guidance = get_cancellation_guidance(subscription.retailer)
+    if guidance is None:
+        return False
+    subscription.cancellation_url = guidance["cancellation_url"]
+    subscription.cancellation_steps = "\n".join(
+        f"{index + 1}. {step}" for index, step in enumerate(guidance["steps"])
+    )
+    return True
+
+
 def process_subscription_refresh(session: Session, subscription_id: str | UUID) -> dict[str, Any]:
     stmt = select(Subscription).where(Subscription.id == UUID(str(subscription_id)))
     subscription = session.execute(stmt).scalar_one_or_none()
@@ -49,11 +61,15 @@ def process_subscription_refresh(session: Session, subscription_id: str | UUID) 
             "current_status": subscription.status.value,
         }
 
+    guidance_applied = apply_cancellation_guidance(subscription)
     next_expected_charge = recalculate_next_expected_charge(subscription)
     if next_expected_charge is None:
+        if guidance_applied:
+            session.commit()
         return {
-            "status": "skipped_missing_schedule_data",
+            "status": "subscription_guidance_refreshed" if guidance_applied else "skipped_missing_schedule_data",
             "subscription_id": str(subscription.id),
+            "guidance_applied": guidance_applied,
         }
 
     subscription.next_expected_charge = next_expected_charge
@@ -62,6 +78,7 @@ def process_subscription_refresh(session: Session, subscription_id: str | UUID) 
         "status": "subscription_refreshed",
         "subscription_id": str(subscription.id),
         "next_expected_charge": subscription.next_expected_charge.isoformat(),
+        "guidance_applied": guidance_applied,
     }
 
 

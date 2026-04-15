@@ -15,7 +15,9 @@ from ..models import (
     UserPreferences,
 )
 from ..scrapers import PriceCheckResult, get_price_adapter
+from ..scrapers import RetailerCircuitOpenError, RetailerNotReadyError, RetailerRateLimitedError, RetailerScrapeError
 from ..schemas.alert import ActionStep, ExplainedRecommendation, RecommendationFactor
+from .notifications import send_high_priority_alert_push
 
 
 logger = logging.getLogger(__name__)
@@ -255,6 +257,22 @@ def process_order_item_price_check(
 
     try:
         result: PriceCheckResult = adapter.fetch_current_price(order_item)
+    except (RetailerCircuitOpenError, RetailerRateLimitedError, RetailerNotReadyError, RetailerScrapeError) as exc:
+        logger.warning(
+            "Price check skipped for retailer=%s order_item_id=%s status=%s detail=%s",
+            retailer,
+            order_item.id,
+            exc.status,
+            exc,
+        )
+        return {
+            "status": exc.status,
+            "order_item_id": str(order_item.id),
+            "retailer": retailer,
+            "detail": str(exc),
+            "alert_created": False,
+            "alert_skipped_duplicate": False,
+        }
     except NotImplementedError:
         return {
             "status": "skipped_unsupported_retailer",
@@ -288,6 +306,7 @@ def process_order_item_price_check(
 
     alert_created = False
     alert_skipped_duplicate = False
+    created_alert = None
     if should_create_price_drop_alert(
         paid_price=order_item.paid_price,
         scraped_price=result.scraped_price,
@@ -297,10 +316,16 @@ def process_order_item_price_check(
         if existing_alert_lookup(session, order_item.id) is not None:
             alert_skipped_duplicate = True
         else:
-            session.add(build_price_drop_alert(order_item, snapshot, threshold))
+            created_alert = build_price_drop_alert(order_item, snapshot, threshold)
+            session.add(created_alert)
             alert_created = True
 
     session.commit()
+    if created_alert is not None and created_alert.priority == AlertPriority.high:
+        try:
+            send_high_priority_alert_push.delay(str(created_alert.id))
+        except Exception:
+            logger.warning("Failed to enqueue push notification for alert %s.", created_alert.id)
     return {
         "status": "snapshot_created",
         "order_item_id": str(order_item.id),
