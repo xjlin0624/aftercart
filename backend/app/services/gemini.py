@@ -1,16 +1,12 @@
-"""
-Gemini Flash client for generating customer support messages.
-"""
 import logging
 
-from google import genai
-
-from ..core.settings import get_settings
 from ..models.alert import Alert
 from ..models.enums import AlertType, MessageTone
 from ..models.order import Order
+from .llm_gateway import generate_cached_gemini_text
 
 logger = logging.getLogger(__name__)
+_GEMINI_MODEL = "gemini-2.0-flash-lite"
 
 _TONE_INSTRUCTIONS = {
     MessageTone.polite: (
@@ -123,7 +119,7 @@ def _build_order_prompt(order: Order, request_type: str, tone: MessageTone) -> s
 
     if request_type == "price_match":
         lines = [
-            f"Write a customer support message to request a price match. ",
+            "Write a customer support message to request a price match. ",
             f"Retailer: {order.retailer}. ",
             f"Items: {item_names}. ",
         ]
@@ -137,8 +133,8 @@ def _build_order_prompt(order: Order, request_type: str, tone: MessageTone) -> s
                 )
         lines += [
             f"{tone_instruction} ",
-            f"The message should be ready to send directly to the retailer's customer support. ",
-            f"Do not include a subject line. Do not include placeholder brackets.",
+            "The message should be ready to send directly to the retailer's customer support. ",
+            "Do not include a subject line. Do not include placeholder brackets.",
         ]
         return "".join(lines)
 
@@ -169,16 +165,14 @@ def generate_message_from_order(order: Order, request_type: str, tone: MessageTo
     Raises RuntimeError if GEMINI_API_KEY is not configured.
     Raises RuntimeError if the Gemini API call fails.
     """
-    settings = get_settings()
-    if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY is not configured.")
-
-    client = genai.Client(api_key=settings.gemini_api_key)
     prompt = _build_order_prompt(order, request_type, tone)
 
     try:
-        response = client.models.generate_content(model="gemini-2.0-flash-lite", contents=prompt)
-        return response.text.strip()
+        return generate_cached_gemini_text(
+            namespace=f"order:{order.id}:{request_type}:{tone.value}",
+            prompt=prompt,
+            model=_GEMINI_MODEL,
+        )
     except Exception as e:
         logger.error("Gemini API call failed: %s", e)
         raise RuntimeError(f"Failed to generate message: {e}") from e
@@ -190,17 +184,14 @@ def generate_support_message(alert: Alert, tone: MessageTone) -> str:
     Raises RuntimeError if GEMINI_API_KEY is not configured.
     Raises RuntimeError if the Gemini API call fails.
     """
-    settings = get_settings()
-    if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY is not configured.")
-
-    client = genai.Client(api_key=settings.gemini_api_key)
-
     prompt = _build_prompt(alert, tone)
 
     try:
-        response = client.models.generate_content(model="gemini-2.0-flash-lite", contents=prompt)
-        return response.text.strip()
+        return generate_cached_gemini_text(
+            namespace=f"alert:{alert.id}:{tone.value}",
+            prompt=prompt,
+            model=_GEMINI_MODEL,
+        )
     except Exception as e:
         logger.error("Gemini API call failed: %s", e)
         raise RuntimeError(f"Failed to generate message: {e}") from e
