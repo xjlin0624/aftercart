@@ -1,5 +1,3 @@
-import { API_BASE } from "./api-client.js";
-
 async function login(email, password) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
@@ -24,7 +22,7 @@ async function logout() {
   await chrome.storage.local.remove(["authToken", "user"]);
 }
 
-export async function isAuthenticated() {
+async function isAuthenticated() {
   const { authToken } = await chrome.storage.local.get("authToken");
   return !!authToken;
 }
