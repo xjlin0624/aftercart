@@ -2,17 +2,25 @@
   "name": "aftercart-dashboard",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint src --ext .js,.jsx"
   },
   "dependencies": {
+    "@sentry/react": "^9.18.0",
     "axios": "^1.6.0",
+    "firebase": "^11.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.3",
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "eslint": "^9.24.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "vite": "^5.0.0"
   }
 }
