@@ -2,7 +2,7 @@
 Tests for POST /api/messages/generate endpoint and order-based prompt building.
 Gemini API calls are mocked — no real API key needed.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 from datetime import date
 
