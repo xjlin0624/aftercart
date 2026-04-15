@@ -3,9 +3,12 @@ from datetime import timedelta
 from celery import Celery
 
 from ..core import get_settings
+from ..core.observability import init_sentry
 
 
 settings = get_settings()
+init_sentry("celery", include_celery=True)
+
 celery_app = Celery("aftercart")
 celery_app.conf.update(
     broker_url=settings.broker_url,
@@ -20,6 +23,7 @@ celery_app.conf.update(
         "backend.app.tasks.price_monitoring",
         "backend.app.tasks.subscriptions",
         "backend.app.tasks.delivery_monitoring",
+        "backend.app.tasks.notifications",
     ),
     beat_schedule={
         "price-check-cycle": {
