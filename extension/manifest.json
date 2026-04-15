@@ -1,5 +1,5 @@
 {
-  "manifest_version": 3,
+ "manifest_version": 3,
   "name": "AfterCart",
   "version": "0.1.0",
   "description": "Post-purchase uncertainty reducer — track orders, price drops, and subscriptions across retailers.",
@@ -10,10 +10,9 @@
     "activeTab"
   ],
   "host_permissions": [
-    "https://www.amazon.com/*",
-    "https://www.target.com/*",
-    "https://www.bestbuy.com/*",
-    "http://localhost:8000/*"
+    "https://www.nike.com/*",
+    "https://www.sephora.com/*",
+    "https://www.target.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -22,11 +21,19 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.amazon.com/gp/your-account/order-history*",
-        "https://www.amazon.com/gp/your-account/order-details*",
-        "https://www.amazon.com/dp/*"
+        "https://www.nike.com/orders*",
+        "https://www.nike.com/w/*",
+        "https://www.nike.com/t/*"
       ],
-      "js": ["content/retailers/amazon.js"],
+      "js": ["content/retailers/nike.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.sephora.com/profile/BeautyInsider/OrderHistory*",
+        "https://www.sephora.com/product/*"
+      ],
+      "js": ["content/retailers/sephora.js"],
       "run_at": "document_idle"
     },
     {
