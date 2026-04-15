@@ -22,6 +22,7 @@ import app.models.alert  # noqa: F401
 import app.models.delivery_event  # noqa: F401
 import app.models.subscription  # noqa: F401
 import app.models.outcome_log  # noqa: F401
+import app.models.push_device_token  # noqa: F401
 
 config = context.config
 
