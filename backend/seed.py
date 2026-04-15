@@ -411,9 +411,9 @@ def run(reset: bool = False) -> None:
 
         session.commit()
         print("\nDone! Seeded:")
-        print(f"  2 users (alice@example.com / bob@example.com, password: password123)")
-        print(f"  3 orders, 4 order items, 5 price snapshots")
-        print(f"  3 delivery events, 3 alerts, 1 outcome log")
+        print("  2 users (alice@example.com / bob@example.com, password: password123)")
+        print("  3 orders, 4 order items, 5 price snapshots")
+        print("  3 delivery events, 3 alerts, 1 outcome log")
 
 
 if __name__ == "__main__":
