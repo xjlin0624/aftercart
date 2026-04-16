@@ -12,7 +12,7 @@
   "host_permissions": [
     "https://www.nike.com/*",
     "https://www.sephora.com/*",
-    "https://www.target.com/*"
+    "https://www.target.com/*",
     "http://localhost:8000/*"
   ],
   "background": {
