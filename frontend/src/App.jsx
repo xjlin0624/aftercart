@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -14,8 +14,16 @@ import { logout } from "./api";
 export default function App() {
   const [authed, setAuthed] = useState(() => !!localStorage.getItem("aftercart_token"));
 
-  function handleLogout() {
-    logout();
+  useEffect(() => {
+    function handleForcedLogout() {
+      setAuthed(false);
+    }
+    window.addEventListener("aftercart:logout", handleForcedLogout);
+    return () => window.removeEventListener("aftercart:logout", handleForcedLogout);
+  }, []);
+
+  async function handleLogout() {
+    await logout();
     setAuthed(false);
   }
 

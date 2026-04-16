@@ -15,7 +15,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="brand-wrap">
         <div className="brand-icon"></div>
-        <div className="brand-text">P.U.R.</div>
+        <div className="brand-text">AfterCart</div>
       </div>
 
       <nav className="sidebar-nav">
