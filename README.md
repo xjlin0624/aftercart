@@ -42,9 +42,9 @@ AfterCart is a post-purchase assistant that aggregates orders, monitors price an
 
 ### Prerequisites
 
-- Docker Desktop
-- Python `3.13` recommended for local backend tooling
+- Python `3.12+`
 - Node.js `20+`
+- Docker Desktop (only needed if running Celery workers locally)
 
 ### Initial Setup
 
@@ -52,52 +52,64 @@ AfterCart is a post-purchase assistant that aggregates orders, monitors price an
 cp .env.example .env
 ```
 
-Review `.env` and add secrets only if you need those integrations locally:
+Set `DATABASE_URL` in `.env` to your Neon connection string. Review `.env` and add secrets only if you need those integrations locally:
 
 - `GEMINI_API_KEY` for message generation
 - `SENTRY_DSN` / `VITE_SENTRY_DSN` for Sentry
 - Firebase credentials for browser push
 - Playwright storage-state files for authenticated retailer pages
 
-### Start the Local Platform
+### Start the Local Platform (Neon Postgres, no Docker)
+
+Since Postgres runs on Neon, you only need to run the API server and frontend locally.
+
+**Terminal 1 — Backend:**
 
 ```bash
-docker compose up --build postgres redis api worker beat
+cd backend && uvicorn app.main:app --reload
+```
+
+**Terminal 2 — Frontend:**
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Open `http://localhost:5173`.
+
+> First time setup: run migrations before starting the API server.
+> ```bash
+> cd backend && alembic upgrade head
+> ```
+
+### Start the Full Platform (with Celery workers, requires Docker)
+
+```bash
+docker compose up --build redis api worker beat
 ```
 
 This brings up:
 
-- Postgres on `localhost:5432`
 - Redis on `localhost:6379`
 - FastAPI on `http://localhost:8000`
 - Celery worker
 - Celery Beat scheduler
 
-The API container runs Alembic migrations automatically at startup.
+Note: the `api` service in docker-compose uses a hardcoded local Postgres URL — update `docker-compose.yml` if you want it to use Neon.
 
 ### Seed Demo Data
 
-In a separate terminal:
-
 ```bash
-py -3.13 backend/seed.py
+cd backend && python seed.py
 ```
 
 To reset and reseed:
 
 ```bash
-py -3.13 backend/seed.py --reset
+cd backend && python seed.py --reset
 ```
 
-### Run the Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173`.
+Seed accounts: `alice@example.com` / `bob@example.com`, password: `password123`
 
 ### Chrome Extension
 
@@ -111,14 +123,20 @@ Current extension retailer support:
 
 ## Manual Backend Commands
 
-If you want to run backend tools outside Docker:
+Install dependencies into a virtual environment:
 
 ```bash
-py -3.13 -m venv .venv313
-.\.venv313\Scripts\pip install -r backend/requirements.txt
-.\.venv313\Scripts\python -m playwright install chromium
-.\.venv313\Scripts\python -m pytest backend/tests
-.\.venv313\Scripts\python -m ruff check backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+playwright install chromium
+```
+
+Run tests and linting:
+
+```bash
+python -m pytest backend/tests
+python -m ruff check backend
 ```
 
 Useful Celery entrypoints:
@@ -138,10 +156,10 @@ Recommended verification commands:
 
 ```bash
 docker compose config
-.\.venv313\Scripts\python -m pytest backend/tests
-.\.venv313\Scripts\python -m ruff check backend
-.\.venv313\Scripts\python backend/scripts/validate_price_check_performance.py --items 100 --target-seconds 300
-.\.venv313\Scripts\python backend/scripts/measure_dashboard_load.py --url http://localhost:5173/dashboard --target-ms 2000 --headless
+python -m pytest backend/tests
+python -m ruff check backend
+python backend/scripts/validate_price_check_performance.py --items 100 --target-seconds 300
+python backend/scripts/measure_dashboard_load.py --url http://localhost:5173/dashboard --target-ms 2000 --headless
 cd frontend && npm run lint && npm run build
 ```
 
@@ -170,3 +188,4 @@ The canonical variable reference lives in [.env.example](.env.example). Key grou
 - Browser push no-ops safely until Firebase credentials are configured.
 - Delivery polling for Nike/Sephora uses Playwright storage-state files when authenticated retailer pages are required.
 - Amazon is implemented as a price-only adapter in this pass.
+- The Savings page fetches real data from `GET /api/savings/summary`. Subscriptions and the dashboard price chart still use placeholder data.
