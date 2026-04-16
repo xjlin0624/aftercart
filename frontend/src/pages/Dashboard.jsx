@@ -58,14 +58,15 @@ function getStatusClass(status) {
 }
 
 function pickFeaturedItem(orders) {
+  let fallback = null;
   for (const order of orders) {
     for (const item of order.items || []) {
-      if (item?.id) {
-        return item;
-      }
+      if (!item?.id) continue;
+      if (fallback === null) fallback = item;
+      if (Number(item.current_price) < Number(item.paid_price)) return item;
     }
   }
-  return null;
+  return fallback;
 }
 
 function buildChartData(history) {
@@ -223,8 +224,8 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            <div className="chart-wrap" style={{ display: "flex", alignItems: "center" }}>
-              <p style={{ color: "#6b7280", margin: 0 }}>
+            <div className="chart-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <p style={{ color: "#9ca3af", margin: 0, fontSize: "0.9rem" }}>
                 No historical trend is available to chart right now.
               </p>
             </div>
@@ -261,7 +262,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="dashboard-main-grid">
+      <section className="section-block">
         <div className="table-card">
           <div className="table-card-header">
             <div>
@@ -275,30 +276,31 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          <div className="summary-row">
-            <span>Total actions</span>
-            <strong>{savingsSummary.totalActions}</strong>
-          </div>
-          <div className="summary-row">
-            <span>Successful actions</span>
-            <strong>{savingsSummary.successfulActions}</strong>
-          </div>
-          <div className="summary-divider"></div>
+          <div style={{ padding: "0 20px 18px" }}>
+            <div className="summary-row">
+              <span>Total actions</span>
+              <strong>{savingsSummary.totalActions}</strong>
+            </div>
+            <div className="summary-row">
+              <span>Successful actions</span>
+              <strong>{savingsSummary.successfulActions}</strong>
+            </div>
+            <div className="summary-divider"></div>
 
-          {savingsSummary.breakdown.length > 0 ? (
-            savingsSummary.breakdown.map((entry) => (
-              <div className="summary-row" key={entry.action_taken}>
-                <span>{String(entry.action_taken).replaceAll("_", " ")}</span>
-                <strong>{formatMoney(entry.total_recovered)}</strong>
-              </div>
-            ))
-          ) : (
-            <p style={{ color: "#6b7280", margin: 0 }}>
-              No savings outcomes have been recorded yet.
-            </p>
-          )}
+            {savingsSummary.breakdown.length > 0 ? (
+              savingsSummary.breakdown.map((entry) => (
+                <div className="summary-row" key={entry.action_taken}>
+                  <span>{String(entry.action_taken).replaceAll("_", " ")}</span>
+                  <strong>{formatMoney(entry.total_recovered)}</strong>
+                </div>
+              ))
+            ) : (
+              <p style={{ color: "#9ca3af", margin: 0, fontSize: "0.9rem" }}>
+                No savings outcomes have been recorded yet.
+              </p>
+            )}
+          </div>
         </div>
-
       </section>
 
       <section className="section-block">

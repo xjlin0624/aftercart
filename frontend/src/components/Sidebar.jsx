@@ -32,10 +32,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="sidebar-bottom">
-        <div className="sidebar-bottom-link">ⓘ Support</div>
-        <div className="sidebar-bottom-link">⇠ Logout</div>
-      </div>
     </aside>
   );
 }

@@ -509,11 +509,11 @@ export default function Alerts() {
                 ) : null}
 
                 {message ? (
-                  <div className="alert-info-list" style={{ marginTop: "12px" }}>
-                    <div className="alert-info-row">
-                      <span>Support draft</span>
-                      <strong style={{ whiteSpace: "pre-wrap" }}>{message.message}</strong>
+                  <div style={{ marginTop: "12px", borderTop: "1px solid #efefef", paddingTop: "12px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#9a9a9a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                      Support Draft
                     </div>
+                    <div className="support-draft-box">{message.message}</div>
                   </div>
                 ) : null}
 

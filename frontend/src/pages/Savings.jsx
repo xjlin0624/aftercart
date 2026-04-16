@@ -138,21 +138,23 @@ export default function Savings() {
             </div>
           </div>
 
-          {byAction.length === 0 && !loading ? (
-            <p style={{ color: "#6b7280", margin: 0 }}>
-              No savings breakdown is available yet because no successful outcomes have been logged.
-            </p>
-          ) : (
-            byAction.map((row) => (
-              <div className="summary-row" key={row.action_taken}>
-                <span>{formatActionType(row.action_taken)}</span>
-                <strong>
-                  {formatMoney(row.total_recovered)} across {row.count} action
-                  {row.count === 1 ? "" : "s"}
-                </strong>
-              </div>
-            ))
-          )}
+          <div style={{ padding: "0 20px 18px" }}>
+            {byAction.length === 0 && !loading ? (
+              <p style={{ color: "#9ca3af", margin: 0, fontSize: "0.9rem" }}>
+                No savings breakdown is available yet because no successful outcomes have been logged.
+              </p>
+            ) : (
+              byAction.map((row) => (
+                <div className="summary-row" key={row.action_taken}>
+                  <span>{formatActionType(row.action_taken)}</span>
+                  <strong>
+                    {formatMoney(row.total_recovered)} across {row.count} action
+                    {row.count === 1 ? "" : "s"}
+                  </strong>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         <div className="table-card">
@@ -164,7 +166,7 @@ export default function Savings() {
               </div>
             </div>
           </div>
-          <p style={{ color: "#6b7280", margin: 0 }}>
+          <p style={{ color: "#6b7280", margin: 0, padding: "0 20px 20px", fontSize: "0.875rem", lineHeight: 1.6 }}>
             Use the Alerts page to generate support messages and log successful outcomes. Those
             logged outcomes feed the totals and history shown here.
           </p>
