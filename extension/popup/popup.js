@@ -1,6 +1,11 @@
 import { getApiBaseUrl, setApiBaseUrl } from "../lib/api-client.js";
 import { login, logout } from "../lib/auth.js";
 
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
 document.addEventListener("DOMContentLoaded", async () => {
   const loginView = document.getElementById("login-view");
   const mainView = document.getElementById("main-view");
@@ -26,9 +31,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       errorEl.classList.add("hidden");
       apiBaseInput.value = await setApiBaseUrl(apiBaseInput.value);
       await login(email, password);
-      showMain();
-    } catch (e) {
-      errorEl.textContent = e.message;
+      await showMain();
+    } catch (error) {
+      errorEl.textContent = error.message;
       errorEl.classList.remove("hidden");
     }
   });
@@ -55,16 +60,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadOrders() {
-    const res = await sendToBackground({ type: "GET_ORDERS" });
     const list = document.getElementById("orders-list");
-    if (!res.ok || !res.data?.length) return;
+    const res = await sendToBackground({ type: "GET_ORDERS" });
+
+    if (!res?.ok) {
+      list.innerHTML = `<p class="empty-state">${res?.error || "Unable to load orders."}</p>`;
+      return;
+    }
+
+    if (!res.data?.length) {
+      list.innerHTML = `
+        <p class="empty-state">
+          Visit a supported retailer order page to capture your first order.
+        </p>
+      `;
+      return;
+    }
 
     list.innerHTML = "";
     for (const order of res.data) {
       const card = document.createElement("div");
       card.className = "order-card";
       const total = Number(order.subtotal ?? order.total);
-      const formattedTotal = Number.isFinite(total) ? `$${total.toFixed(2)}` : "-";
+      const formattedTotal = Number.isFinite(total) ? currencyFormatter.format(total) : "-";
 
       card.innerHTML = `
         <h3>${order.retailer} - ${order.retailer_order_id}</h3>
@@ -75,9 +93,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadAlerts() {
-    const res = await sendToBackground({ type: "GET_ALERTS" });
     const list = document.getElementById("alerts-list");
-    if (!res.ok || !res.data?.length) return;
+    const res = await sendToBackground({ type: "GET_ALERTS" });
+
+    if (!res?.ok) {
+      list.innerHTML = `<p class="empty-state">${res?.error || "Unable to load alerts."}</p>`;
+      return;
+    }
+
+    if (!res.data?.length) {
+      list.innerHTML = `<p class="empty-state">No alerts yet.</p>`;
+      return;
+    }
 
     list.innerHTML = "";
     for (const alert of res.data) {
@@ -93,6 +120,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadSavings() {
+<<<<<<< Updated upstream
     try {
       const res = await sendToBackground({ type: "GET_SAVINGS" });
       const el = document.getElementById("total-savings");
@@ -103,12 +131,57 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     } catch (_error) {
       // Ignore load failures; the popup can still function for orders and alerts.
+=======
+    const totalEl = document.getElementById("total-savings");
+    const detailEl = document.getElementById("savings-detail");
+    const breakdownEl = document.getElementById("savings-breakdown");
+
+    totalEl.textContent = "Loading...";
+    detailEl.textContent = "Fetching your latest backend savings summary.";
+    breakdownEl.innerHTML = "";
+
+    const res = await sendToBackground({ type: "GET_SAVINGS" });
+    if (!res?.ok) {
+      totalEl.textContent = "Unavailable";
+      detailEl.textContent = res?.error || "Unable to load savings right now.";
+      return;
+    }
+
+    const totalRecovered = Number(res.data?.total_recovered || 0);
+    const totalActions = Number(res.data?.total_actions || 0);
+    const successfulActions = Number(res.data?.successful_actions || 0);
+    const byAction = Array.isArray(res.data?.by_action) ? res.data.by_action : [];
+
+    totalEl.textContent = currencyFormatter.format(totalRecovered);
+
+    if (totalActions === 0) {
+      detailEl.textContent =
+        "No recovered savings logged yet. Savings appear here after you act on an alert.";
+      return;
+    }
+
+    detailEl.textContent = `${successfulActions} successful action(s) across ${totalActions} logged outcome(s).`;
+
+    if (byAction.length > 0) {
+      breakdownEl.innerHTML = byAction
+        .map(
+          (entry) => `
+            <div class="breakdown-item">
+              <span>${entry.action_taken.replace(/_/g, " ")}</span>
+              <strong>${currencyFormatter.format(Number(entry.total_recovered || 0))}</strong>
+            </div>
+          `
+        )
+        .join("");
+>>>>>>> Stashed changes
     }
   }
 
   function sendToBackground(msg) {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage(msg, resolve);
+      chrome.runtime.sendMessage(msg, (response) => {
+        resolve(response || { ok: false, error: "No response from extension background." });
+      });
     });
   }
 });
