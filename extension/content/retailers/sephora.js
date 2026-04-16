@@ -45,6 +45,7 @@ class SephoraExtractor extends BaseExtractor {
             items.push({
               name,
               productId: skuId || null,
+              productUrl: productLink?.href || null,
               imageUrl: imgUrl || null,
             });
           }

@@ -26,11 +26,15 @@ def parse_nike_price_html(html: str, *, source_url: str | None = None) -> PriceC
     if price is None:
         raise ScraperTransientError("Nike price not found on page.")
 
-    unavailable = bool(soup.find(string=re.compile("sold out|unavailable", re.IGNORECASE)))
+    # If a price was successfully extracted, the product page loaded and is
+    # priced — treat it as available. Nike pages contain "Sold Out" text for
+    # individual size buttons even when other sizes are in stock, so text
+    # matching produces false negatives. A truly unavailable product would
+    # fail price extraction above and raise ScraperTransientError.
     return PriceCheckResult(
         scraped_price=price,
         currency="USD",
-        is_available=not unavailable,
+        is_available=True,
         raw_payload={"retailer": "nike"},
         source_url=source_url,
     )

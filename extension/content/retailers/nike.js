@@ -48,6 +48,7 @@ class NikeExtractor extends BaseExtractor {
             items.push({
               name,
               productId: styleCode || null,
+              productUrl: productLink?.href || null,
               imageUrl: imgUrl || null,
             });
           }

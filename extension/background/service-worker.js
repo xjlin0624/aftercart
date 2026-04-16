@@ -32,21 +32,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
+function buildProductUrl(retailer, productId) {
+  if (!productId) return null;
+  if (retailer === "nike") return `https://www.nike.com/t/product/${productId}`;
+  if (retailer === "sephora") return `https://www.sephora.com/product/product-P${productId}`;
+  return null;
+}
+
 async function handleOrdersCaptured(payload) {
   // POST each order individually to /orders (backend expects a single order)
+  const { retailer, orders } = payload;
   const results = [];
-  for (const order of payload) {
+  for (const order of orders) {
     const itemCount = order.items?.length || 1;
     const perItemPrice = order.total / itemCount;
 
     const body = {
+      retailer,
       retailer_order_id: order.externalOrderId,
       subtotal: order.total,
       order_date: new Date(order.orderDate).toISOString(),
       order_status: "pending",
       items: (order.items || []).map((item) => ({
         product_name: item.name,
-        product_url: `https://www.amazon.com/dp/${item.productId}`,
+        product_url: item.productUrl || buildProductUrl(retailer, item.productId),
         sku: item.productId,
         image_url: item.imageUrl,
         paid_price: perItemPrice,

@@ -26,11 +26,13 @@ def parse_sephora_price_html(html: str, *, source_url: str | None = None) -> Pri
     if price is None:
         raise ScraperTransientError("Sephora price not found on page.")
 
-    unavailable = bool(soup.find(string=re.compile("out of stock|unavailable", re.IGNORECASE)))
+    # If a price was successfully extracted, treat the product as available.
+    # Sephora pages contain "Out of Stock" text for individual shades/sizes
+    # even when other variants are available, causing false negatives.
     return PriceCheckResult(
         scraped_price=price,
         currency="USD",
-        is_available=not unavailable,
+        is_available=True,
         raw_payload={"retailer": "sephora"},
         source_url=source_url,
     )
