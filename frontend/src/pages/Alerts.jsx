@@ -511,7 +511,7 @@ export default function Alerts() {
                 {message ? (
                   <div style={{ marginTop: "12px", borderTop: "1px solid #efefef", paddingTop: "12px" }}>
                     <div style={{ fontSize: "11px", fontWeight: 700, color: "#9a9a9a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
-                      Support Draft
+                      Support Draft · {String(message.tone || "polite")}
                     </div>
                     <div className="support-draft-box">{message.message}</div>
                   </div>

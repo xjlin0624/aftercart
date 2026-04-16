@@ -17,6 +17,14 @@ from ..schemas.order_item import OrderItemCreate, OrderItemRead
 router = APIRouter(prefix="/orders", tags=["orders"])
 logger = logging.getLogger(__name__)
 
+# Retailer price-match policy.  Keyed by the normalised retailer slug (lowercase,
+# stripped).  Authoritative at order ingestion — overrides whatever the extension
+# sends so the flag is always consistent with the retailer's actual policy.
+_PRICE_MATCH_POLICY: dict[str, bool] = {
+    "nike": True,       # Nike offers price adjustments within 14 days of purchase
+    "sephora": True,    # Sephora offers price adjustments within 30 days of purchase
+}
+
 
 # ---------------------------------------------------------------------------
 # Return-window deadline calculation
@@ -210,6 +218,10 @@ def ingest_order(
     # Apply scalar fields (normalization already done by Pydantic validators)
     for field, value in body.model_dump(exclude={"items"}).items():
         setattr(order, field, value)
+
+    # Override price_match_eligible from the server-side policy so it is always
+    # accurate regardless of what the extension sends.
+    order.price_match_eligible = _PRICE_MATCH_POLICY.get(body.retailer, False)
 
     db.flush()  # ensure order.id is assigned before inserting items
 

@@ -699,8 +699,17 @@ input {
 
 .danger-text-btn {
   background: transparent;
-  color: #ff2a2a;
-  font-weight: 700;
+  border: none;
+  color: #9a9a9a;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 10px 16px;
+  border-radius: 10px;
+}
+
+.danger-text-btn:hover {
+  color: #e53e3e;
+  background: #fff0f0;
 }
 
 .section-space {
