@@ -1,5 +1,8 @@
-async function login(email, password) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+import { buildApiUrl } from "./api-client.js";
+
+export async function login(email, password) {
+  const url = await buildApiUrl("/auth/login");
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -13,16 +16,16 @@ async function login(email, password) {
   const { access_token, user } = await res.json();
   await chrome.storage.local.set({
     authToken: access_token,
-    user: user,
+    user,
   });
   return user;
 }
 
-async function logout() {
+export async function logout() {
   await chrome.storage.local.remove(["authToken", "user"]);
 }
 
-async function isAuthenticated() {
+export async function isAuthenticated() {
   const { authToken } = await chrome.storage.local.get("authToken");
   return !!authToken;
 }

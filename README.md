@@ -101,7 +101,13 @@ Open `http://localhost:5173`.
 
 ### Chrome Extension
 
-Load the `extension/` folder in Chrome Developer Mode and point it at the same API base URL as the dashboard.
+Load the `extension/` folder in Chrome Developer Mode. The popup sign-in screen lets you set the backend API base URL, so local (`http://localhost:8000/api`) and deployed environments can be used without code edits. Chrome will request host access for the configured API origin the first time you save a new backend target.
+
+Current extension retailer support:
+
+- Nike: order-page and product-page capture
+- Sephora: order-page and product-page capture
+- Target: intentionally unsupported in this build; the content script exits without attempting extraction
 
 ## Manual Backend Commands
 

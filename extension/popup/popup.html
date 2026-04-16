@@ -10,6 +10,11 @@
   <div id="login-view" class="view">
     <h1>AfterCart</h1>
     <p class="subtitle">Sign in to track your orders</p>
+    <input
+      type="url"
+      id="api-base-url"
+      placeholder="API base URL (for example https://api.example.com/api)"
+    />
     <input type="email" id="email" placeholder="Email" />
     <input type="password" id="password" placeholder="Password" />
     <button id="login-btn" class="btn-primary">Sign In</button>
@@ -56,6 +61,6 @@
     </section>
   </div>
 
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

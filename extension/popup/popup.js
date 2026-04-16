@@ -1,30 +1,31 @@
+import { getApiBaseUrl, setApiBaseUrl } from "../lib/api-client.js";
+import { login, logout } from "../lib/auth.js";
+
 document.addEventListener("DOMContentLoaded", async () => {
   const loginView = document.getElementById("login-view");
-  const mainView  = document.getElementById("main-view");
+  const mainView = document.getElementById("main-view");
+  const loginButton = document.getElementById("login-btn");
+  const logoutButton = document.getElementById("logout-btn");
+  const emailInput = document.getElementById("email");
+  const passwordInput = document.getElementById("password");
+  const apiBaseInput = document.getElementById("api-base-url");
+  const errorEl = document.getElementById("login-error");
 
-  // Check auth state
+  apiBaseInput.value = await getApiBaseUrl();
+
   const { authToken } = await chrome.storage.local.get("authToken");
   if (authToken) {
     showMain();
   }
 
-  // --- Login ---
-  document.getElementById("login-btn").addEventListener("click", async () => {
-    const email    = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const errorEl  = document.getElementById("login-error");
+  loginButton.addEventListener("click", async () => {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
 
     try {
       errorEl.classList.add("hidden");
-      const res = await fetch("http://localhost:8000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) throw new Error("Invalid credentials");
-
-      const { access_token, user } = await res.json();
-      await chrome.storage.local.set({ authToken: access_token, user });
+      apiBaseInput.value = await setApiBaseUrl(apiBaseInput.value);
+      await login(email, password);
       showMain();
     } catch (e) {
       errorEl.textContent = e.message;
@@ -32,24 +33,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // --- Logout ---
-  document.getElementById("logout-btn").addEventListener("click", async () => {
-    await chrome.storage.local.remove(["authToken", "user"]);
+  logoutButton.addEventListener("click", async () => {
+    await logout();
     mainView.classList.add("hidden");
     loginView.classList.remove("hidden");
   });
 
-  // --- Tab switching ---
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-      document.querySelectorAll(".tab-content").forEach((c) => c.classList.add("hidden"));
+      document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach((content) => content.classList.add("hidden"));
       tab.classList.add("active");
       document.getElementById(`tab-${tab.dataset.tab}`).classList.remove("hidden");
     });
   });
 
-  // --- Load data into main view ---
   async function showMain() {
     loginView.classList.add("hidden");
     mainView.classList.remove("hidden");
@@ -65,9 +63,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     for (const order of res.data) {
       const card = document.createElement("div");
       card.className = "order-card";
+      const total = Number(order.subtotal ?? order.total);
+      const formattedTotal = Number.isFinite(total) ? `$${total.toFixed(2)}` : "-";
+
       card.innerHTML = `
-        <h3>${order.retailer} — ${order.retailer_order_id}</h3>
-        <div class="meta">${order.order_date} · $${order.total?.toFixed(2) || "—"}</div>
+        <h3>${order.retailer} - ${order.retailer_order_id}</h3>
+        <div class="meta">${order.order_date} | ${formattedTotal}</div>
       `;
       list.appendChild(card);
     }
@@ -93,10 +94,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function loadSavings() {
     try {
-      const res = await sendToBackground({ type: "GET_ORDERS" });
+      await sendToBackground({ type: "GET_ORDERS" });
       const el = document.getElementById("total-savings");
-      el.textContent = "$0.00"; // TODO: wire to real savings API
-    } catch (e) { /* ignore */ }
+      el.textContent = "$0.00";
+    } catch (_error) {
+      // Ignore load failures; the popup can still function for orders and alerts.
+    }
   }
 
   function sendToBackground(msg) {

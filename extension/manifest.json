@@ -4,10 +4,15 @@
   "version": "0.1.0",
   "description": "Post-purchase uncertainty reducer — track orders, price drops, and subscriptions across retailers.",
   "permissions": [
+    "permissions",
     "storage",
     "alarms",
     "notifications",
     "activeTab"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "host_permissions": [
     "https://www.nike.com/*",
@@ -25,7 +30,10 @@
         "https://www.nike.com/w/*",
         "https://www.nike.com/t/*"
       ],
-      "js": ["content/retailers/nike.js"],
+      "js": [
+        "content/retailers/base.js",
+        "content/retailers/nike.js"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -33,7 +41,10 @@
         "https://www.sephora.com/profile/BeautyInsider/OrderHistory*",
         "https://www.sephora.com/product/*"
       ],
-      "js": ["content/retailers/sephora.js"],
+      "js": [
+        "content/retailers/base.js",
+        "content/retailers/sephora.js"
+      ],
       "run_at": "document_idle"
     },
     {
