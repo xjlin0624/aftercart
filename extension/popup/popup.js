@@ -94,9 +94,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function loadSavings() {
     try {
-      await sendToBackground({ type: "GET_ORDERS" });
+      const res = await sendToBackground({ type: "GET_SAVINGS" });
       const el = document.getElementById("total-savings");
-      el.textContent = "$0.00";
+      if (res?.ok && res.data?.total_recovered != null) {
+        el.textContent = `$${Number(res.data.total_recovered).toFixed(2)}`;
+      } else {
+        el.textContent = "$0.00";
+      }
     } catch (_error) {
       // Ignore load failures; the popup can still function for orders and alerts.
     }

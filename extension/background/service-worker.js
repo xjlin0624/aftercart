@@ -30,6 +30,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+
+  if (msg.type === "GET_SAVINGS") {
+    api.get("/savings/summary")
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
 });
 
 function buildProductUrl(retailer, productId) {
@@ -53,6 +60,7 @@ async function handleOrdersCaptured(payload) {
       subtotal: order.total,
       order_date: new Date(order.orderDate).toISOString(),
       order_status: "pending",
+      order_url: order.orderUrl || null,
       items: (order.items || []).map((item) => ({
         product_name: item.name,
         product_url: item.productUrl || buildProductUrl(retailer, item.productId),

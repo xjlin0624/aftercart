@@ -82,7 +82,7 @@ export default function Login({ onSuccess }) {
 
         <p style={{ marginTop: "16px", textAlign: "center", fontSize: "0.9rem", color: "#6b7280" }}>
           {mode === "login" ? (
-            <>Don't have an account?{" "}
+            <>Don&apos;t have an account?{" "}
               <button type="button" className="plain-link-btn" onClick={() => switchMode("signup")}>
                 Sign up
               </button>

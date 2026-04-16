@@ -51,10 +51,19 @@ class SephoraExtractor extends BaseExtractor {
           }
         }
 
+        // Order detail URL — used by backend for delivery status polling
+        const orderLink = card.querySelector(
+          "a[href*='/orders/'], a[href*='/order/'], a[href*='/OrderDetail']"
+        );
+        const orderUrl = orderLink
+          ? new URL(orderLink.href, window.location.origin).toString()
+          : null;
+
         if (orderId) {
           orders.push({
             externalOrderId: orderId,
             orderDate,
+            orderUrl,
             total,
             currency: "USD",
             items,

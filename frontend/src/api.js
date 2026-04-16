@@ -103,7 +103,7 @@ async function apiFetch(url, options = {}) {
 
   const refreshed = await attemptTokenRefresh();
   if (!refreshed) {
-    window.dispatchEvent(new Event("aftercart:logout"));
+    window.dispatchEvent(new window.Event("aftercart:logout"));
     // Return the original 401 so callers get a proper error
     return res;
   }
