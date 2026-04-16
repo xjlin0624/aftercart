@@ -14,6 +14,7 @@
 5. Show delivery monitoring:
    - Nike/Sephora order URLs
    - graceful `scraper_not_ready` behavior when session state is missing
+   - call out that Amazon is price-only in the current build
 6. Show monitoring and operations:
    - `/api/health`
    - `/api/health/ready`

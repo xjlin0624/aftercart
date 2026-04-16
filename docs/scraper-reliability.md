@@ -22,7 +22,12 @@
 ## Operational Notes
 - Product price pages are public-path friendly.
 - Nike and Sephora delivery polling works best with authenticated Playwright storage state files in `PLAYWRIGHT_STORAGE_STATE_DIR`.
+- Render deployment does not magically create those storage-state files. Real cloud delivery polling remains blocked until `nike.json` and/or `sephora.json` are provisioned at `PLAYWRIGHT_STORAGE_STATE_DIR` on the worker host.
 - Amazon is implemented as a price adapter only in this repository.
+
+## Phase 4 Validation Status
+- Authenticated delivery polling was not revalidated in the current Phase 4 environment because no Playwright storage-state directory or retailer session files were present.
+- Graceful fallback behavior without storage state remains covered by automated tests and by the `scraper_not_ready` return path in delivery polling.
 
 ## Validation Commands
 ```powershell

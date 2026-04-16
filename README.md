@@ -9,7 +9,7 @@ AfterCart is a post-purchase assistant that aggregates orders, monitors price an
 - Backend: `FastAPI`, `SQLAlchemy`, `Alembic`, `Celery`, `Redis`, `Postgres`
 - Frontend: `React`, `Vite`
 - Scraping: `Playwright` retailer adapters for Nike, Sephora, and Amazon price checks
-- Notifications/observability: `Firebase Cloud Messaging`, `Sentry`
+- Notifications and observability: `Firebase Cloud Messaging`, `Sentry`
 - Deployment targets: `Render` for backend services and `Vercel` for the dashboard
 
 ## Repository Guides
@@ -44,7 +44,7 @@ AfterCart is a post-purchase assistant that aggregates orders, monitors price an
 
 - Python `3.12+`
 - Node.js `20+`
-- Docker Desktop (only needed if running Celery workers locally)
+- Docker Desktop if you want the full local stack with Postgres, Redis, and Celery
 
 ### Initial Setup
 
@@ -52,24 +52,24 @@ AfterCart is a post-purchase assistant that aggregates orders, monitors price an
 cp .env.example .env
 ```
 
-Set `DATABASE_URL` in `.env` to your Neon connection string. Review `.env` and add secrets only if you need those integrations locally:
+Review `.env` and add secrets only if you need those integrations locally:
 
 - `GEMINI_API_KEY` for message generation
 - `SENTRY_DSN` / `VITE_SENTRY_DSN` for Sentry
 - Firebase credentials for browser push
 - Playwright storage-state files for authenticated retailer pages
 
-### Start the Local Platform (Neon Postgres, no Docker)
+### Start the Local Platform (API + Frontend without Docker)
 
-Since Postgres runs on Neon, you only need to run the API server and frontend locally.
+Use this mode only if you already have reachable Postgres and Redis instances configured in `.env`.
 
-**Terminal 1 — Backend:**
+**Terminal 1 - Backend**
 
 ```bash
 cd backend && uvicorn app.main:app --reload
 ```
 
-**Terminal 2 — Frontend:**
+**Terminal 2 - Frontend**
 
 ```bash
 cd frontend && npm install && npm run dev
@@ -82,20 +82,21 @@ Open `http://localhost:5173`.
 > cd backend && alembic upgrade head
 > ```
 
-### Start the Full Platform (with Celery workers, requires Docker)
+### Start the Full Platform (local Postgres + Redis + API + worker + beat)
 
 ```bash
-docker compose up --build redis api worker beat
+docker compose up --build postgres redis api worker beat
 ```
 
 This brings up:
 
+- Postgres on `localhost:5432`
 - Redis on `localhost:6379`
 - FastAPI on `http://localhost:8000`
 - Celery worker
 - Celery Beat scheduler
 
-Note: the `api` service in docker-compose uses a hardcoded local Postgres URL — update `docker-compose.yml` if you want it to use Neon.
+This is the default local validation path used by the repo. If you prefer managed Postgres/Redis instead, override `.env` and run the API/frontend without Docker.
 
 ### Seed Demo Data
 
@@ -120,6 +121,17 @@ Current extension retailer support:
 - Nike: order-page and product-page capture
 - Sephora: order-page and product-page capture
 - Target: intentionally unsupported in this build; the content script exits without attempting extraction
+
+## Retailer Support Matrix
+
+| Surface | Nike | Sephora | Amazon | Target |
+| --- | --- | --- | --- | --- |
+| Extension order capture | Supported | Supported | Not implemented | Unsupported in this build |
+| Extension product-page price capture | Supported | Supported | Not implemented | Unsupported in this build |
+| Backend price checks | Supported | Supported | Supported | Not implemented |
+| Backend delivery polling | Supported with authenticated Playwright storage state | Supported with authenticated Playwright storage state | Not implemented | Not implemented |
+
+Amazon remains price-only in the current repository state.
 
 ## Manual Backend Commands
 
@@ -167,14 +179,14 @@ cd frontend && npm run lint && npm run build
 
 The canonical variable reference lives in [.env.example](.env.example). Key groups:
 
-- platform/database/cache
+- platform, database, cache
 - auth
 - Celery schedules
 - Sentry
-- Playwright/scraper reliability
-- Gemini cache/rate limits
-- Firebase/FCM
-- Render/Vercel deployment URLs
+- Playwright and scraper reliability
+- Gemini cache and rate limits
+- Firebase and FCM
+- Render and Vercel deployment URLs
 - frontend `VITE_*` build-time config
 
 ## Deployment
@@ -182,10 +194,12 @@ The canonical variable reference lives in [.env.example](.env.example). Key grou
 - Backend services and managed data stores are described in [render.yaml](render.yaml)
 - Frontend deployment assumptions live in [vercel.json](vercel.json)
 - CI and deploy automation live under `.github/workflows/`
+- Production configuration requirements and Phase 4 validation status are summarized in [docs/operations.md](docs/operations.md) and [docs/student-b-handoff.md](docs/student-b-handoff.md)
 
 ## Notes
 
 - Browser push no-ops safely until Firebase credentials are configured.
-- Delivery polling for Nike/Sephora uses Playwright storage-state files when authenticated retailer pages are required.
+- Delivery polling for Nike and Sephora uses Playwright storage-state files when authenticated retailer pages are required.
 - Amazon is implemented as a price-only adapter in this pass.
-- The Savings page fetches real data from `GET /api/savings/summary`. Subscriptions and the dashboard price chart still use placeholder data.
+- Savings, Subscriptions, Dashboard summaries, and extension popup savings now use real backend data paths.
+- The dashboard price-history section renders real item history when available and falls back to an empty state when no history exists yet.

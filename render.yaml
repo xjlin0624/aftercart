@@ -35,6 +35,24 @@ services:
           type: redis
           name: aftercart-redis
           property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: RENDER_EXTERNAL_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - key: SENTRY_RELEASE
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.0"
+      - key: GEMINI_API_KEY
+        sync: false
 
   - type: worker
     name: aftercart-worker
@@ -67,6 +85,24 @@ services:
           type: redis
           name: aftercart-redis
           property: connectionString
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - key: SENTRY_RELEASE
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.0"
+      - key: SENTRY_ENABLE_CELERY
+        value: "true"
+      - key: FCM_ENABLED
+        value: "false"
+      - key: FCM_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FCM_DEFAULT_TTL_SECONDS
+        value: "3600"
 
   - type: worker
     name: aftercart-beat
@@ -99,6 +135,24 @@ services:
           type: redis
           name: aftercart-redis
           property: connectionString
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - key: SENTRY_RELEASE
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.0"
+      - key: SENTRY_ENABLE_CELERY
+        value: "true"
+      - key: FCM_ENABLED
+        value: "false"
+      - key: FCM_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FCM_DEFAULT_TTL_SECONDS
+        value: "3600"
 
 databases:
   - name: aftercart-postgres
