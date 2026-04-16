@@ -120,18 +120,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadSavings() {
-<<<<<<< Updated upstream
-    try {
-      const res = await sendToBackground({ type: "GET_SAVINGS" });
-      const el = document.getElementById("total-savings");
-      if (res?.ok && res.data?.total_recovered != null) {
-        el.textContent = `$${Number(res.data.total_recovered).toFixed(2)}`;
-      } else {
-        el.textContent = "$0.00";
-      }
-    } catch (_error) {
-      // Ignore load failures; the popup can still function for orders and alerts.
-=======
     const totalEl = document.getElementById("total-savings");
     const detailEl = document.getElementById("savings-detail");
     const breakdownEl = document.getElementById("savings-breakdown");
@@ -173,7 +161,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           `
         )
         .join("");
->>>>>>> Stashed changes
     }
   }
 

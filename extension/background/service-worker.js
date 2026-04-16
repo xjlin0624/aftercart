@@ -64,48 +64,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
-<<<<<<< Updated upstream
-=======
 
   return false;
->>>>>>> Stashed changes
 });
 
-function buildProductUrl(retailer, productId) {
-  if (!productId) return null;
-  if (retailer === "nike") return `https://www.nike.com/t/product/${productId}`;
-  if (retailer === "sephora") return `https://www.sephora.com/product/product-P${productId}`;
-  return null;
-}
 
 async function handleOrdersCaptured(payload) {
-<<<<<<< Updated upstream
-  // POST each order individually to /orders (backend expects a single order)
-  const { retailer, orders } = payload;
-  const results = [];
-  for (const order of orders) {
-    const itemCount = order.items?.length || 1;
-    const perItemPrice = order.total / itemCount;
-
-    const body = {
-      retailer,
-      retailer_order_id: order.externalOrderId,
-      subtotal: order.total,
-      order_date: new Date(order.orderDate).toISOString(),
-      order_status: "pending",
-      order_url: order.orderUrl || null,
-      items: (order.items || []).map((item) => ({
-        product_name: item.name,
-        product_url: item.productUrl || buildProductUrl(retailer, item.productId),
-        sku: item.productId,
-        image_url: item.imageUrl,
-        paid_price: perItemPrice,
-      })),
-    };
-
-    const res = await api.post("/orders", body);
-    results.push(res);
-=======
   const retailer = normalizeRetailer(payload?.retailer);
   const orders = Array.isArray(payload?.orders) ? payload.orders : [];
   const sourceUrl = payload?.sourceUrl || "";
@@ -113,7 +77,6 @@ async function handleOrdersCaptured(payload) {
 
   if (!retailer) {
     throw new Error("Captured order payload is missing retailer metadata");
->>>>>>> Stashed changes
   }
 
   if (orders.length === 0) {
