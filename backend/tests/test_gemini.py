@@ -223,32 +223,36 @@ def test_get_message_tone_query_param_overrides_preference():
     mock_gen.assert_called_once_with(alert, MessageTone.concise)
 
 
-def test_get_message_returns_cached_if_available():
+def test_get_message_always_calls_gemini_no_db_cache():
+    # DB-level cache was removed; generate_support_message is always called
     user = _make_user()
-    alert = _make_alert(user.id, generated_messages={"polite": "Cached message here."})
+    alert = _make_alert(user.id, generated_messages={"polite": "Old cached message."})
     session = FakeMessageSession(alert=alert, prefs=_make_prefs(user.id))
     client = _make_client(session, user)
 
-    with patch("backend.app.api.alerts.generate_support_message") as mock_gen:
+    with patch("backend.app.api.alerts.generate_support_message", return_value="Fresh message.") as mock_gen:
         resp = client.get(f"/api/alerts/{alert.id}/message")
 
     assert resp.status_code == 200
-    assert resp.json()["message"] == "Cached message here."
-    assert resp.json()["cached"] is True
-    mock_gen.assert_not_called()
+    assert resp.json()["message"] == "Fresh message."
+    assert resp.json()["cached"] is False
+    mock_gen.assert_called_once()
 
 
-def test_get_message_caches_new_message():
+def test_get_message_does_not_write_to_db():
+    # Messages are no longer persisted to alert.generated_messages
     user = _make_user()
     alert = _make_alert(user.id)
     session = FakeMessageSession(alert=alert, prefs=_make_prefs(user.id))
     client = _make_client(session, user)
 
     with patch("backend.app.api.alerts.generate_support_message", return_value="New message."):
-        client.get(f"/api/alerts/{alert.id}/message")
+        resp = client.get(f"/api/alerts/{alert.id}/message")
 
-    assert alert.generated_messages == {"polite": "New message."}
-    assert session.committed is True
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "New message."
+    assert alert.generated_messages is None  # not written back to DB
+    assert session.committed is False
 
 
 def test_get_message_not_found_returns_404():
