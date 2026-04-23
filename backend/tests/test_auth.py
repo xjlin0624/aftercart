@@ -97,7 +97,7 @@ def test_signup_creates_user_and_returns_201():
 
     resp = client.post("/api/auth/signup", json={
         "email": "new@example.com",
-        "password": "strongpass",
+        "password": "Strongpass1",
     })
 
     assert resp.status_code == 201
@@ -115,7 +115,7 @@ def test_signup_returns_409_when_email_taken():
 
     resp = client.post("/api/auth/signup", json={
         "email": existing.email,
-        "password": "whatever",
+        "password": "Whatever1",
     })
 
     assert resp.status_code == 409
@@ -127,7 +127,7 @@ def test_signup_with_display_name():
 
     resp = client.post("/api/auth/signup", json={
         "email": "named@example.com",
-        "password": "pass",
+        "password": "Password1",
         "display_name": "Alice",
     })
 
