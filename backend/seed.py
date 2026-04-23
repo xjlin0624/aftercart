@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
@@ -56,18 +56,28 @@ def clear(session: Session) -> None:
     print("Cleared existing seed data.")
 
 
-def run(reset: bool = False) -> None:
+def clear_all(session: Session) -> None:
+    """Delete ALL users and their cascaded data."""
+    session.execute(delete(User))
+    session.commit()
+    print("Cleared all users and related data.")
+
+
+def run(reset: bool = False, wipe_all: bool = False) -> None:
     with Session(engine) as session:
         if settings.app_env != "development":
             print(f"Refusing to seed: APP_ENV={settings.app_env} (only runs in development).")
             return
 
-        existing = session.execute(select(User).where(User.email == "alice@example.com")).scalar_one_or_none()
-        if existing:
-            if not reset:
-                print("Seed data already exists — use --reset to wipe and re-seed.")
-                return
-            clear(session)
+        if wipe_all:
+            clear_all(session)
+        else:
+            existing = session.execute(select(User).where(User.email == "alice@example.com")).scalar_one_or_none()
+            if existing:
+                if not reset:
+                    print("Seed data already exists — use --reset to wipe and re-seed.")
+                    return
+                clear(session)
 
         print("Seeding database...")
 
@@ -765,5 +775,6 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Seed development data into the database.")
     parser.add_argument("--reset", action="store_true", help="Wipe existing seed data and re-seed.")
+    parser.add_argument("--wipe-all", action="store_true", help="Delete ALL users (not just seed users) then re-seed.")
     args = parser.parse_args()
-    run(reset=args.reset)
+    run(reset=args.reset, wipe_all=args.wipe_all)

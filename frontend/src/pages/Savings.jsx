@@ -117,10 +117,12 @@ export default function Savings() {
       ) : (
         !loading && (
           <div className="table-card">
-            <div className="section-card-title">Savings Over Time</div>
-            <p style={{ color: "#6b7280", marginBottom: 0 }}>
-              No completed savings outcomes are available to chart yet.
-            </p>
+            <div style={{ padding: "20px 20px 20px" }}>
+              <div className="section-card-title">Savings Over Time</div>
+              <p style={{ color: "#6b7280", margin: "8px 0 0" }}>
+                No completed savings outcomes are available to chart yet.
+              </p>
+            </div>
           </div>
         )
       )}
