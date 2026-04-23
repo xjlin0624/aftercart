@@ -100,7 +100,6 @@ export default function Login({ onSuccess }) {
               <li>Orders from all your retailers, in one place</li>
               <li>Price-drop alerts after you buy</li>
               <li>Delivery delay detection, automatically</li>
-              <li>Subscription and recurring charge tracking</li>
             </ul>
           </div>
         )}

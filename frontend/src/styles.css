@@ -938,18 +938,30 @@ label.form-group input[type="checkbox"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f6f6f6;
+  background: url("/landing_page.jpg") center/cover no-repeat;
   padding: 24px;
+}
+
+.login-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 0;
 }
 
 .login-form {
   background: #fff;
   border: 1px solid #e7e7e7;
   border-radius: 18px;
-  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
   padding: 36px 40px 32px;
   width: 100%;
   max-width: 420px;
+  position: relative;
+  z-index: 1;
 }
 
 .login-form h2 {
