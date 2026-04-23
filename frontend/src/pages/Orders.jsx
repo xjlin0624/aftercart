@@ -33,6 +33,7 @@ function mapOrder(order) {
     id: order.retailer_order_id || order.id || "N/A",
     store: order.retailer || "Unknown",
     item: firstItem?.product_name || "Unknown Item",
+    itemCount: Array.isArray(order.items) ? order.items.length : 0,
     pricePaid: formatMoney(paid),
     currentPrice: formatMoney(subtotal),
     savings: formatMoney(savings),
@@ -249,7 +250,7 @@ export default function Orders() {
               <tr>
                 <th>ORDER ID</th>
                 <th>STORE</th>
-                <th>ITEM</th>
+                <th>ITEMS</th>
                 <th>PRICE PAID</th>
                 <th>CURRENT PRICE</th>
                 <th>SAVINGS</th>
@@ -271,7 +272,14 @@ export default function Orders() {
                   <tr key={row.order.id}>
                     <td>{row.id}</td>
                     <td>{row.store}</td>
-                    <td>{row.item}</td>
+                    <td>
+                      {row.item}
+                      {row.itemCount > 1 && (
+                        <span style={{ marginLeft: "6px", fontSize: "0.75rem", color: "#6b7280" }}>
+                          +{row.itemCount - 1} more
+                        </span>
+                      )}
+                    </td>
                     <td>{row.pricePaid}</td>
                     <td>{row.currentPrice}</td>
                     <td className={row.savings === "$0.00" ? "muted-text" : "green-text"}>
