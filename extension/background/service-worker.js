@@ -97,7 +97,7 @@ async function handleOrdersCaptured(payload) {
         subtotal: safeSubtotal,
         currency: order.currency || "USD",
         order_date: parseCapturedDate(order.orderDate, capturedAt),
-        order_status: "pending",
+        order_status: (order.orderStatus || "pending").toLowerCase().replace(/\s+/g, "_"),
         order_url: sourceUrl || null,
         raw_capture: {
           retailer,
