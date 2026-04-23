@@ -93,6 +93,18 @@ export default function Login({ onSuccess }) {
       <form className="login-form" onSubmit={handleSubmit}>
         <h2>{mode === "signup" ? "Create an AfterCart Account" : "Sign In to AfterCart"}</h2>
 
+        {mode === "login" && (
+          <div className="login-intro">
+            <p className="login-tagline">Your post-purchase command center. AfterCart keeps watch after checkout so you don&apos;t have to.</p>
+            <ul className="login-feature-list">
+              <li>Orders from all your retailers, in one place</li>
+              <li>Price-drop alerts after you buy</li>
+              <li>Delivery delay detection, automatically</li>
+              <li>Subscription and recurring charge tracking</li>
+            </ul>
+          </div>
+        )}
+
         {error && <p style={{ color: "red" }}>{error}</p>}
 
         {mode === "signup" && (

@@ -956,7 +956,31 @@ label.form-group input[type="checkbox"] {
   font-size: 22px;
   font-weight: 800;
   color: #1f1f1f;
-  margin: 0 0 22px 0;
+  margin: 0 0 16px 0;
+}
+
+.login-intro {
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #ededed;
+}
+
+.login-tagline {
+  font-size: 13.5px;
+  color: #555;
+  margin: 0 0 10px 0;
+  line-height: 1.55;
+}
+
+.login-feature-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
 .login-form .form-group {
