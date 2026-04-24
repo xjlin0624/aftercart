@@ -6,7 +6,7 @@ from ..models.order import Order
 from .llm_gateway import generate_cached_gemini_text
 
 logger = logging.getLogger(__name__)
-_GEMINI_MODEL = "gemini-2.0-flash-lite"
+_GEMINI_MODEL = "gemini-2.5-flash"
 
 _TONE_INSTRUCTIONS = {
     MessageTone.polite: (
