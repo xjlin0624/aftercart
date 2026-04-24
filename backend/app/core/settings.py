@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
@@ -82,6 +82,14 @@ class Settings(BaseSettings):
     fcm_default_ttl_seconds: int = Field(default=3600, alias="FCM_DEFAULT_TTL_SECONDS")
 
     render_external_url: str = Field(default="http://localhost:8000", alias="RENDER_EXTERNAL_URL")
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def fix_db_driver(cls, v: str) -> str:
+        # Render (and some other hosts) provide postgresql:// but psycopg3 requires postgresql+psycopg://
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+psycopg://", 1)
+        return v
 
     @property
     def broker_url(self) -> str:
